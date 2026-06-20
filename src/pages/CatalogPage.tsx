@@ -78,7 +78,7 @@ export function CatalogPage() {
   return (
     <main className="pt-32 flex-grow max-w-[1280px] mx-auto w-full px-4 md:px-16 py-12 pb-24 md:pb-12">
       <div className="mb-12">
-        <h1 className="font-['Montserrat'] text-4xl md:text-5xl font-bold text-[var(--deep-navy)] mb-4">
+        <h1 className="font-['Montserrat'] text-4xl md:text-5xl font-bold text-[var(--deep-navy)] mb-4 mt-6">
           Danh mục sản phẩm
         </h1>
         <p className="text-lg text-[var(--on-surface-variant)] max-w-2xl mb-8">
