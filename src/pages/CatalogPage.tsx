@@ -76,7 +76,7 @@ export function CatalogPage() {
   const [sortBy, setSortBy] = useState("Mới nhất");
 
   return (
-    <main className="pt-20 flex-grow max-w-[1280px] mx-auto w-full px-4 md:px-16 py-12 pb-24 md:pb-12">
+    <main className="pt-32 flex-grow max-w-[1280px] mx-auto w-full px-4 md:px-16 py-12 pb-24 md:pb-12">
       <div className="mb-12">
         <h1 className="font-['Montserrat'] text-4xl md:text-5xl font-bold text-[var(--deep-navy)] mb-4">
           Danh mục sản phẩm
