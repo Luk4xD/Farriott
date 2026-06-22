@@ -226,16 +226,16 @@ export function DesignStudioPage() {
         {/* ── Center panel ── */}
         <div className="flex-1 flex flex-col bg-[var(--surface-container-low)] min-w-0">
           {/* Center toolbar */}
-          <div className="bg-white border-b border-[var(--outline-variant)] px-4 py-3 flex items-center justify-center gap-2 flex-shrink-0">
+          <div className="bg-white border-b border-[var(--outline-variant)] px-4 py-4 flex items-center justify-center gap-3 flex-shrink-0">
             {centerActions.map((a) => (
               <button
                 key={a.label}
-                className="flex flex-col items-center gap-1 px-5 py-2 border border-[var(--outline-variant)] rounded bg-white hover:border-[var(--deep-navy)] hover:text-[var(--deep-navy)] transition-all group"
+                className="flex flex-col items-center gap-1.5 px-8 py-3 border border-[var(--outline-variant)] rounded bg-white hover:border-[var(--deep-navy)] hover:text-[var(--deep-navy)] hover:bg-[var(--surface-container-low)] transition-all group min-w-[88px]"
               >
-                <span className="material-symbols-outlined text-[var(--on-surface-variant)] group-hover:text-[var(--deep-navy)] transition-colors">
+                <span className="material-symbols-outlined text-[32px] text-[var(--on-surface-variant)] group-hover:text-[var(--deep-navy)] transition-colors">
                   {a.icon}
                 </span>
-                <span className="text-xs text-[var(--on-surface-variant)] group-hover:text-[var(--deep-navy)] transition-colors">
+                <span className="text-sm font-medium text-[var(--on-surface-variant)] group-hover:text-[var(--deep-navy)] transition-colors">
                   {a.label}
                 </span>
               </button>
