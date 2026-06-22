@@ -56,9 +56,12 @@ export function HomePage() {
               gian đáng kể.
             </p>
             <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-              <button className="bg-[var(--deep-navy)] text-white text-base font-medium px-8 py-4 rounded hover:bg-[var(--electric-blue)] transition-colors duration-300">
+              <Link
+                to="/design"
+                className="bg-[var(--deep-navy)] text-white text-base font-medium px-8 py-4 rounded hover:bg-[var(--electric-blue)] transition-colors duration-300 text-center"
+              >
                 Bắt đầu thiết kế
-              </button>
+              </Link>
               <button className="border border-[var(--cool-silver)] text-[var(--deep-navy)] bg-transparent text-base font-medium px-8 py-4 rounded hover:border-[var(--deep-navy)] transition-colors duration-300">
                 Tìm hiểu thêm
               </button>
