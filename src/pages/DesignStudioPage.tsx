@@ -147,7 +147,7 @@ export function DesignStudioPage() {
     <main className="pt-20 min-h-screen bg-[var(--surface)] flex flex-col">
       {/* Page header */}
       <div className="bg-white border-b border-[var(--outline-variant)] py-5 text-center flex-shrink-0">
-        <h1 className="font-['Montserrat'] text-2xl md:text-3xl font-bold text-[var(--deep-navy)]">
+        <h1 className="font-['Montserrat'] text-2xl md:text-3xl font-bold text-[var(--deep-navy)] mt-4">
           Ứng Dụng Thiết Kế
         </h1>
         <p className="text-sm text-[var(--on-surface-variant)] mt-1">
