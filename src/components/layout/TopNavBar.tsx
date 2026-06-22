@@ -42,9 +42,12 @@ export function TopNavBar() {
           </nav>
 
           <div className="hidden md:flex items-center space-x-4">
-            <button className="bg-[var(--electric-blue)] hover:bg-[var(--deep-navy)] text-white px-6 py-2 rounded transition-colors duration-300 text-xs font-bold uppercase tracking-wider">
+            <Link
+              to="/quote"
+              className="bg-[var(--electric-blue)] hover:bg-[var(--deep-navy)] text-white px-6 py-2 rounded transition-colors duration-300 text-xs font-bold uppercase tracking-wider"
+            >
               Nhận báo giá
-            </button>
+            </Link>
           </div>
 
           <button
@@ -81,9 +84,13 @@ export function TopNavBar() {
                   {item.label}
                 </Link>
               ))}
-              <button className="mt-4 bg-[var(--electric-blue)] text-white px-6 py-2 rounded text-xs font-bold uppercase tracking-wider">
+              <Link
+                to="/quote"
+                onClick={() => setMobileMenuOpen(false)}
+                className="mt-4 bg-[var(--electric-blue)] text-white px-6 py-2 rounded text-xs font-bold uppercase tracking-wider text-center"
+              >
                 Nhận báo giá
-              </button>
+              </Link>
             </nav>
           </div>
         </div>
