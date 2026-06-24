@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { Rnd } from "react-rnd";
+import { useCart } from "@/context/CartContext";
 
 // --- Data ---
 
@@ -258,6 +259,7 @@ export function DesignStudioPage() {
   );
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [addedToCart, setAddedToCart] = useState(false);
+  const { addItem } = useCart();
 
   // Hiển thị ảnh áo mẫu thật ban đầu, tắt đi khi người dùng chọn màu để chuyển sang SVG
   const [isDefaultMockup, setIsDefaultMockup] = useState(true);
@@ -402,6 +404,30 @@ export function DesignStudioPage() {
     setQuantities((prev) => ({ ...prev, [size]: Math.max(0, val) }));
 
   const handleAddToCart = () => {
+    // Get color name from hex
+    const colorInfo = shirtColors.find((c) => c.hex === selectedColor);
+    const colorName = colorInfo?.name || "Tùy chỉnh";
+
+    // Build sizes array from quantities
+    const sizes = SIZES.filter((s) => quantities[s] > 0).map((s) => ({
+      size: s,
+      quantity: quantities[s],
+    }));
+
+    // Require at least one item
+    if (sizes.length === 0) {
+      alert("Vui lòng chọn ít nhất một size với số lượng > 0");
+      return;
+    }
+
+    // Add to cart
+    addItem({
+      color: selectedColor,
+      colorName,
+      sizes,
+      totalPrice: grandTotal,
+    });
+
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2800);
   };

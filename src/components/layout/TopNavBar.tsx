@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/context/CartContext";
 
 const navItems = [
   { label: "Trang chủ", path: "/" },
@@ -12,6 +13,7 @@ const navItems = [
 export function TopNavBar() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { totalItems } = useCart();
 
   return (
     <>
@@ -42,6 +44,14 @@ export function TopNavBar() {
           </nav>
 
           <div className="hidden md:flex items-center space-x-4">
+            <Link to="/cart" className="relative text-[var(--deep-navy)] hover:text-[var(--electric-blue)] transition-colors">
+              <span className="material-symbols-outlined text-2xl">shopping_cart</span>
+              {totalItems > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[var(--electric-blue)] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {totalItems > 99 ? "99+" : totalItems}
+                </span>
+              )}
+            </Link>
             <Link
               to="/quote"
               className="bg-[var(--electric-blue)] hover:bg-[var(--deep-navy)] text-white px-6 py-2 rounded transition-colors duration-300 text-xs font-bold uppercase tracking-wider"
@@ -84,6 +94,16 @@ export function TopNavBar() {
                   {item.label}
                 </Link>
               ))}
+              <Link
+                to="/cart"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-between text-base font-medium text-[var(--on-surface-variant)]"
+              >
+                <span>Giỏ hàng</span>
+                <span className="bg-[var(--electric-blue)] text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                  {totalItems > 99 ? "99+" : totalItems}
+                </span>
+              </Link>
               <Link
                 to="/quote"
                 onClick={() => setMobileMenuOpen(false)}
