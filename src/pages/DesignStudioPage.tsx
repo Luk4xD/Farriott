@@ -50,8 +50,6 @@ type ImageLayer = {
   type: "image";
   src: string;
   view: "front" | "back";
-  // Vị trí & kích thước được lưu ở tỉ lệ % (0-1) so với khung preview,
-  // để có thể quy đổi chính xác khi đổi kích thước khung lúc Phóng To.
   xPct: number;
   yPct: number;
   widthPct: number;
@@ -62,7 +60,7 @@ type TextLayer = {
   id: string;
   type: "text";
   content: string;
-  fontSizePct: number; // cỡ chữ lưu theo % chiều cao khung, để scale đúng tỉ lệ khi zoom
+  fontSizePct: number;
   view: "front" | "back";
   xPct: number;
   yPct: number;
@@ -86,14 +84,25 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+// Chuyển 1 URL ảnh (blob: URL tạo từ URL.createObjectURL, hoặc bất kỳ URL nào)
+// thành base64 data URL — cần thiết vì blob URL chỉ tồn tại trong phiên làm
+// việc hiện tại (mất hiệu lực sau khi tải lại trang), còn data URL là string
+// thật sự, lưu được bền vào localStorage.
+function urlToDataUrl(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    fetch(url)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      })
+      .catch(reject);
+  });
+}
+
 // --- Layer Item (ảnh hoặc chữ đặt trên áo) ---
-// Tách riêng thành component để:
-// 1) Mỗi layer chỉ re-render khi chính nó thay đổi, không bị ảnh hưởng bởi
-//    việc chọn/hover một layer KHÁC (tránh Rnd nhận props "mới" một cách không cần thiết).
-// 2) Dùng useMemo để giữ NGUYÊN reference của object `position`/`size` khi giá trị số
-//    không đổi — vì Rnd so sánh prop bằng reference, một object mới (dù số giống cũ)
-//    cũng khiến nó tưởng vị trí vừa bị set lại từ bên ngoài và "đồng bộ" lại,
-//    gây hiện tượng khựng nếu việc này trùng thời điểm với lúc bắt đầu kéo.
 const LayerItem = memo(function LayerItem({
   layer,
   boxW,
@@ -134,12 +143,9 @@ const LayerItem = memo(function LayerItem({
       size={size}
       position={position}
       lockAspectRatio={layer.type === "image"}
-      // Tắt hack user-select trên <body>: tránh trang bị "giật" khi bắt đầu kéo
       enableUserSelectHack={false}
       style={{
         touchAction: "none",
-        // Viền chỉ hiện khi đang trỏ chuột vào (hover), không phụ thuộc
-        // việc layer có đang được chọn hay không.
         border: isHovered
           ? "2px dashed var(--electric-blue)"
           : "2px dashed transparent",
@@ -178,21 +184,12 @@ const LayerItem = memo(function LayerItem({
       }}
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
-      // Chọn layer khi bấm xuống, NHƯNG bỏ qua nếu đang bấm vào nút xoá
-      // (data-no-select đánh dấu nút đó) — tránh việc Rnd "nuốt" click của
-      // nút xoá khi cả hai cùng lắng nghe sự kiện trên cùng vùng DOM.
       onMouseDown={(e) => {
         const target = e.target as HTMLElement;
         if (target.closest("[data-no-select]")) return;
         onSelect();
-        // Khoá luôn từ lúc nhấn xuống (không chờ tới onDragStart), để không
-        // có khoảng hở giữa lúc "chọn" và lúc bắt đầu kéo thực sự — đây là
-        // khoảng hở mà sidebar có thể đổi layout và làm lệch toạ độ layer.
         onDragStateChange(true);
       }}
-      // Handle resize ở góc trên-phải trùng vị trí nút xoá (-top-3 -right-3).
-      // Thu nhỏ vùng bắt sự kiện của riêng handle này và bỏ cursor resize,
-      // để nó không đè cursor "nesw-resize" lên trên nút xoá nữa.
       resizeHandleStyles={{
         topRight: { cursor: "default", width: "10px", height: "10px" },
       }}
@@ -221,9 +218,6 @@ const LayerItem = memo(function LayerItem({
           </div>
         )}
 
-        {/* Nút xoá layer, CHỈ hiện khi đang trỏ chuột vào layer (hover).
-            data-no-select để onMouseDown ở Rnd phía trên biết bỏ qua, không
-            chọn/kéo layer khi người dùng đang thực sự bấm vào nút này. */}
         <button
           type="button"
           tabIndex={-1}
@@ -246,7 +240,6 @@ const LayerItem = memo(function LayerItem({
   );
 });
 
-
 // --- Main Component ---
 
 type SizeQty = Record<string, number>;
@@ -259,26 +252,19 @@ export function DesignStudioPage() {
   );
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [isSavingToCart, setIsSavingToCart] = useState(false);
   const { addItem } = useCart();
 
-  // Hiển thị ảnh áo mẫu thật ban đầu, tắt đi khi người dùng chọn màu để chuyển sang SVG
   const [isDefaultMockup, setIsDefaultMockup] = useState(true);
   const [isZoomed, setIsZoomed] = useState(false);
 
-  // Tất cả layer (ảnh upload + chữ) đặt trên áo, có thể kéo-thả & resize tự do
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
-  // true trong suốt thời gian đang kéo/resize một layer — dùng để khoá cuộn trang,
-  // vì nguyên nhân chính của hiện tượng "trang tự giật lên" là trình duyệt tự cuộn
-  // theo phần tử đang được tương tác trong lúc kéo (đặc biệt khi panel cha có overflow-y).
   const [isInteractingLayer, setIsInteractingLayer] = useState(false);
 
   useEffect(() => {
     if (!isInteractingLayer) return;
-    // Nếu người dùng chỉ bấm chọn (mousedown) mà không thực sự kéo, onDragStop
-    // của Rnd sẽ không chạy. Lắng nghe mouseup toàn cục để đảm bảo trạng thái
-    // "đang tương tác" luôn được tắt lại, không bị treo ở true mãi.
     const handleUp = () => setIsInteractingLayer(false);
     window.addEventListener("mouseup", handleUp);
     return () => window.removeEventListener("mouseup", handleUp);
@@ -286,27 +272,17 @@ export function DesignStudioPage() {
 
   useEffect(() => {
     if (!isInteractingLayer) return;
-
-    // Ghim cứng vị trí cuộn hiện tại của trang trong suốt lúc kéo/resize
     const scrollY = window.scrollY;
     const scrollX = window.scrollX;
     const lockScroll = () => window.scrollTo(scrollX, scrollY);
-
     window.addEventListener("scroll", lockScroll, { passive: false });
     return () => window.removeEventListener("scroll", lockScroll);
   }, [isInteractingLayer]);
 
-  // State cho ô nhập chữ (panel "Thêm chữ")
   const [textDraft, setTextDraft] = useState("");
-  const [textDraftSize, setTextDraftSize] = useState(8); // % chiều cao khung preview
+  const [textDraftSize, setTextDraftSize] = useState(8);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Kích thước khung preview hiện tại (px) — cần để quy đổi giữa px <-> %.
-  // Dùng ResizeObserver thay vì đọc getBoundingClientRect() trực tiếp trong render,
-  // vì lúc đang chạy CSS transition (khi bấm Phóng To), getBoundingClientRect()
-  // có thể trả về kích thước giữa chừng (chưa tới đích), khiến layer bị lệch vị trí
-  // và scale sai tỉ lệ trong khoảnh khắc chuyển đổi.
   const previewRef = useRef<HTMLDivElement>(null);
   const [boxSize, setBoxSize] = useState({ width: 360, height: 360 });
 
@@ -315,15 +291,9 @@ export function DesignStudioPage() {
     if (!el) return;
 
     const updateSize = () => {
-      // Trong lúc đang kéo/resize một layer, không cập nhật boxSize nữa.
-      // Lý do: chọn layer (mousedown) có thể khiến sidebar trái hiện thêm
-      // panel "Chỉnh chữ đang chọn", làm layout flex tổng thể co giãn nhẹ,
-      // kéo theo khung preview bị đo lại kích thước đúng lúc người dùng vừa
-      // nhấn xuống để kéo — gây cảm giác layer bị "khựng" một nhịp.
       if (isInteractingLayer) return;
       const rect = el.getBoundingClientRect();
       setBoxSize((prev) => {
-        // Chỉ update khi thực sự đổi, tránh re-render thừa
         if (prev.width === rect.width && prev.height === rect.height) return prev;
         return { width: rect.width, height: rect.height };
       });
@@ -353,7 +323,6 @@ export function DesignStudioPage() {
       setLayers((prev) => [...prev, newLayer]);
       setSelectedLayerId(newLayer.id);
     }
-    // reset input để có thể upload lại cùng 1 file nếu cần
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -376,8 +345,6 @@ export function DesignStudioPage() {
     setTextDraft("");
   };
 
-  // Enter để xuống dòng là hành vi mặc định của <textarea>, nên không cần xử lý thêm.
-  // Chỉ chặn Enter khi giữ Ctrl/Cmd để thêm chữ nhanh (tuỳ chọn UX).
   const handleTextDraftKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -403,33 +370,72 @@ export function DesignStudioPage() {
   const updateQty = (size: string, val: number) =>
     setQuantities((prev) => ({ ...prev, [size]: Math.max(0, val) }));
 
-  const handleAddToCart = () => {
-    // Get color name from hex
+  const handleAddToCart = async () => {
     const colorInfo = shirtColors.find((c) => c.hex === selectedColor);
     const colorName = colorInfo?.name || "Tùy chỉnh";
 
-    // Build sizes array from quantities
     const sizes = SIZES.filter((s) => quantities[s] > 0).map((s) => ({
       size: s,
       quantity: quantities[s],
     }));
 
-    // Require at least one item
     if (sizes.length === 0) {
       alert("Vui lòng chọn ít nhất một size với số lượng > 0");
       return;
     }
 
-    // Add to cart
-    addItem({
-      color: selectedColor,
-      colorName,
-      sizes,
-      totalPrice: grandTotal,
-    });
+    setIsSavingToCart(true);
+    try {
+      // Chuyển toạ độ % của mọi layer thành dữ liệu lưu bền (CartLayer).
+      // Quan trọng: layer ảnh đang dùng blob URL (từ URL.createObjectURL),
+      // chỉ sống trong phiên làm việc hiện tại — phải đổi sang base64 data URL
+      // trước khi đưa vào giỏ hàng, nếu không ảnh sẽ "biến mất" sau khi tải lại
+      // trang (vì localStorage chỉ lưu được string, và blob URL cũ sẽ hết hiệu lực).
+      const cartLayers = await Promise.all(
+        layers.map(async (layer) => {
+          if (layer.type === "image") {
+            const dataUrl = await urlToDataUrl(layer.src);
+            return {
+              id: layer.id,
+              type: "image" as const,
+              view: layer.view,
+              xPct: layer.xPct,
+              yPct: layer.yPct,
+              widthPct: layer.widthPct,
+              heightPct: layer.heightPct,
+              src: dataUrl,
+            };
+          }
+          return {
+            id: layer.id,
+            type: "text" as const,
+            view: layer.view,
+            xPct: layer.xPct,
+            yPct: layer.yPct,
+            widthPct: layer.widthPct,
+            heightPct: layer.heightPct,
+            content: layer.content,
+            fontSizePct: layer.fontSizePct,
+          };
+        })
+      );
 
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 2800);
+      addItem({
+        color: selectedColor,
+        colorName,
+        sizes,
+        totalPrice: grandTotal,
+        layers: cartLayers,
+      });
+
+      setAddedToCart(true);
+      setTimeout(() => setAddedToCart(false), 2800);
+    } catch (err) {
+      console.error("Lỗi khi lưu thiết kế vào giỏ hàng:", err);
+      alert("Có lỗi khi lưu thiết kế (ảnh có thể quá nặng). Vui lòng thử lại.");
+    } finally {
+      setIsSavingToCart(false);
+    }
   };
 
   const visibleLayers = layers.filter((l) => l.view === view);
@@ -437,7 +443,6 @@ export function DesignStudioPage() {
 
   return (
     <main className="pt-20 min-h-screen bg-[var(--surface)] flex flex-col">
-      {/* Nút upload ẩn */}
       <input
         type="file"
         ref={fileInputRef}
@@ -445,7 +450,6 @@ export function DesignStudioPage() {
         accept="image/*"
         className="hidden"
       />
-      {/* Page header */}
       <div className="bg-white border-b border-[var(--outline-variant)] py-5 text-center flex-shrink-0">
         <h1 className="font-['Montserrat'] text-2xl md:text-3xl font-bold text-[var(--deep-navy)] mt-4">
           Ứng Dụng Thiết Kế
@@ -455,11 +459,8 @@ export function DesignStudioPage() {
         </p>
       </div>
 
-      {/* Three-panel workspace */}
       <div className="flex flex-1 overflow-hidden">
-        {/* ── Left panel ── */}
         <aside className="hidden md:flex flex-col w-60 flex-shrink-0 bg-white border-r border-[var(--outline-variant)] overflow-y-auto">
-          {/* Color picker */}
           <div className="p-4 border-b border-[var(--outline-variant)]">
             <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] text-center mb-3">
               Chọn Màu
@@ -493,7 +494,6 @@ export function DesignStudioPage() {
             </div>
           </div>
 
-          {/* Tools */}
           <div className="p-2 border-b border-[var(--outline-variant)]">
             {tools.map((tool) => (
               <button
@@ -518,7 +518,6 @@ export function DesignStudioPage() {
             ))}
           </div>
 
-          {/* Panel "Thêm chữ" — chỉ hiện khi tool đang được chọn */}
           {activeTool === "Thêm chữ" && (
             <div className="p-4 border-b border-[var(--outline-variant)] space-y-3">
               <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
@@ -533,7 +532,6 @@ export function DesignStudioPage() {
                 className="w-full text-sm border border-[var(--outline-variant)] rounded p-2 resize-none focus:border-[var(--deep-navy)] focus:outline-none transition-colors"
               />
 
-              {/* Bảng chỉnh cỡ chữ */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-[var(--on-surface-variant)]">
@@ -564,14 +562,6 @@ export function DesignStudioPage() {
             </div>
           )}
 
-          {/* Panel layer đang chọn trên áo — LUÔN giữ cùng cấu trúc/chiều cao
-              cho cả layer ảnh và chữ (chỉ đổi nội dung bên trong). Lý do:
-              nếu panel này CHỈ xuất hiện cho layer chữ, lúc người dùng chuyển
-              từ chọn layer chữ sang layer ảnh, panel đột ngột biến mất, sidebar
-              co lại, toàn bộ layout trang đổi chiều cao — trình duyệt buộc phải
-              điều chỉnh lại vị trí cuộn, gây ra cảm giác trang bị "giật" xuống.
-              Giữ khung panel cố định (ẩn/hiện nội dung bên trong, không ẩn/hiện
-              cả khung) loại bỏ hoàn toàn nguyên nhân layout-shift này. */}
           {selectedLayer && (
             <div
               className="p-4 border-b border-[var(--outline-variant)] space-y-3"
@@ -616,8 +606,6 @@ export function DesignStudioPage() {
                   </div>
                 </>
               ) : (
-                // Layer ảnh: preview nhỏ + thông báo, giữ cùng khoảng chiều cao
-                // tương đối với phần chữ ở trên để tránh layout nhảy quá mạnh.
                 <div className="flex items-center gap-3 p-2 border border-[var(--outline-variant)] rounded">
                   <img
                     src={selectedLayer.src}
@@ -639,8 +627,6 @@ export function DesignStudioPage() {
             </div>
           )}
 
-
-          {/* Pattern dropdown */}
           <div className="p-4">
             <button className="w-full flex items-center justify-between px-3 py-2.5 border border-[var(--outline-variant)] rounded text-sm text-[var(--on-surface)] hover:border-[var(--deep-navy)] transition-colors">
               <span>Họa tiết</span>
@@ -651,9 +637,7 @@ export function DesignStudioPage() {
           </div>
         </aside>
 
-        {/* ── Center panel ── */}
         <div className="flex-1 flex flex-col bg-[var(--surface-container-low)] min-w-0">
-          {/* Center toolbar */}
           <div className="bg-white border-b border-[var(--outline-variant)] px-4 py-4 flex items-center justify-center gap-3 flex-shrink-0">
             {centerActions.map((a) => (
               <button
@@ -665,8 +649,6 @@ export function DesignStudioPage() {
                     setLayers([]);
                     setSelectedLayerId(null);
                   } else if (a.label === "Phóng To") {
-                    // Chỉ đổi kích thước khung hiển thị; vì toạ độ & cỡ chữ của
-                    // layer được lưu theo %, chúng tự scale đúng tỉ lệ theo áo.
                     setIsZoomed(!isZoomed);
                   }
                 }}
@@ -682,12 +664,10 @@ export function DesignStudioPage() {
             ))}
           </div>
 
-          {/* Shirt preview */}
           <div className="flex-1 flex flex-col items-center justify-center py-8 px-6 overflow-hidden">
             <div
               ref={previewRef}
               onClick={(e) => {
-                // Bấm ra vùng trống thì bỏ chọn layer
                 if (e.target === e.currentTarget) setSelectedLayerId(null);
               }}
               className={`w-full aspect-square relative flex items-center justify-center transition-all duration-300 ease-in-out ${isZoomed ? "max-w-[550px]" : "max-w-[360px]"}`}
@@ -722,8 +702,6 @@ export function DesignStudioPage() {
                 </div>
               )}
 
-              {/* Các layer ảnh / chữ — kéo-thả & resize tự do, toạ độ lưu theo %
-                  nên tự scale đúng tỉ lệ áo khi khung preview đổi kích thước (Phóng To) */}
               {visibleLayers.map((layer) => {
                 const boxW = boxSize.width;
                 const boxH = boxSize.height;
@@ -752,7 +730,6 @@ export function DesignStudioPage() {
               })}
             </div>
 
-            {/* Front / Back toggle thumbnails */}
             <div className="flex gap-3 mt-5">
               {(["front", "back"] as const).map((v) => (
                 <button
@@ -797,7 +774,6 @@ export function DesignStudioPage() {
             </div>
           </div>
 
-          {/* Mobile color bar */}
           <div className="md:hidden px-4 pb-4 bg-white border-t border-[var(--outline-variant)] pt-4">
             <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] mb-2">
               Chọn Màu
@@ -828,9 +804,7 @@ export function DesignStudioPage() {
           </div>
         </div>
 
-        {/* ── Right panel ── */}
         <aside className="w-72 flex-shrink-0 bg-white border-l border-[var(--outline-variant)] overflow-y-auto flex flex-col">
-          {/* Product attributes */}
           <div className="p-4 border-b border-[var(--outline-variant)]">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-['Montserrat'] text-sm font-semibold text-[var(--deep-navy)]">
@@ -860,7 +834,6 @@ export function DesignStudioPage() {
             </button>
           </div>
 
-          {/* Size grid */}
           <div className="p-4 border-b border-[var(--outline-variant)]">
             <h3 className="text-sm font-semibold text-[var(--deep-navy)] mb-3">
               Size áo
@@ -893,7 +866,6 @@ export function DesignStudioPage() {
             )}
           </div>
 
-          {/* Pricing */}
           <div className="p-4 flex-1 flex flex-col justify-between">
             <div>
               <h3 className="font-['Montserrat'] text-base font-semibold text-[var(--deep-navy)] mb-3">
@@ -927,15 +899,20 @@ export function DesignStudioPage() {
             <div className="mt-5 space-y-2">
               <button
                 onClick={handleAddToCart}
-                className={`w-full flex items-center justify-center gap-2 py-3 rounded text-sm font-bold uppercase tracking-wider transition-all duration-300 ${addedToCart
+                disabled={isSavingToCart}
+                className={`w-full flex items-center justify-center gap-2 py-3 rounded text-sm font-bold uppercase tracking-wider transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${addedToCart
                   ? "bg-green-600 text-white"
                   : "bg-[var(--electric-blue)] hover:bg-[var(--deep-navy)] text-white"
                   }`}
               >
                 <span className="material-symbols-outlined text-[20px]">
-                  {addedToCart ? "check_circle" : "shopping_cart"}
+                  {addedToCart ? "check_circle" : isSavingToCart ? "hourglass_top" : "shopping_cart"}
                 </span>
-                {addedToCart ? "Đã thêm vào giỏ!" : "Thêm vào giỏ"}
+                {addedToCart
+                  ? "Đã thêm vào giỏ!"
+                  : isSavingToCart
+                    ? "Đang lưu..."
+                    : "Thêm vào giỏ"}
               </button>
               <button className="w-full flex items-center justify-center gap-2 py-3 rounded text-sm font-bold uppercase tracking-wider border border-[var(--deep-navy)] text-[var(--deep-navy)] hover:bg-[var(--deep-navy)] hover:text-white transition-all">
                 <span className="material-symbols-outlined text-[20px]">

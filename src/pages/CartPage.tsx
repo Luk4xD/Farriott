@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
+import { useEffect, useRef, useState } from "react";
 
 function isLightColor(hex: string) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -52,6 +53,96 @@ function TShirtMiniSVG({ color }: { color: string }) {
   );
 }
 
+// Preview áo có kèm layer ảnh/chữ đã thiết kế (nếu có), dùng đúng toạ độ %
+// đã lưu trong giỏ hàng để vẽ lại đúng vị trí tương đối như lúc thiết kế.
+// Chỉ vẽ layer thuộc view "front" — đủ cho mục đích xem nhanh trong giỏ hàng.
+function TShirtPreviewWithDesign({
+  color,
+  layers,
+}: {
+  color: string;
+  layers?: import("@/context/CartContext").CartLayer[];
+}) {
+  const frontLayers = (layers || []).filter((l) => l.view === "front");
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Đo chiều cao thật của khung preview để tính cỡ chữ theo px — tránh phụ
+  // thuộc vào container query units (cqh), vốn chưa được hỗ trợ ở mọi trình
+  // duyệt/setup build, để đảm bảo hiển thị đúng trên mọi môi trường.
+  const [containerHeight, setContainerHeight] = useState(96);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerHeight(el.getBoundingClientRect().height);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative w-full h-full">
+      <div
+        className="absolute inset-0 w-full h-full"
+        style={{
+          backgroundColor: color,
+          WebkitMaskImage: "url(/images/shirt_white.png)",
+          WebkitMaskSize: "contain",
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          maskImage: "url(/images/shirt_white.png)",
+          maskSize: "contain",
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+        }}
+      >
+        <img
+          src="/images/shirt_white.png"
+          alt="Colored Shirt"
+          className="w-full h-full object-contain mix-blend-multiply"
+        />
+      </div>
+      {frontLayers.map((layer) => (
+        <div
+          key={layer.id}
+          className="absolute pointer-events-none select-none flex items-center justify-center overflow-hidden"
+          style={{
+            left: `${layer.xPct * 100}%`,
+            top: `${layer.yPct * 100}%`,
+            width: `${layer.widthPct * 100}%`,
+            height: `${layer.heightPct * 100}%`,
+          }}
+        >
+          {layer.type === "image" ? (
+            <img
+              src={layer.src}
+              alt="Thiết kế"
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-center whitespace-pre-wrap break-words"
+              style={{
+                // fontSizePct được lưu theo % chiều cao khung preview LÚC THIẾT KẾ
+                // (xem DesignStudioPage). Ở đây nhân lại với chiều cao khung hiện
+                // tại (đo qua ResizeObserver) để giữ đúng tỉ lệ tương đối, dù khung
+                // ở trang giỏ hàng nhỏ hơn nhiều so với khung lúc thiết kế.
+                fontSize: `${((layer.fontSizePct || 8) / 100) * containerHeight}px`,
+                color: isLightColor(color) ? "#1a1a1a" : "#ffffff",
+                fontFamily: "Inter, sans-serif",
+                fontWeight: 600,
+                lineHeight: 1.1,
+              }}
+            >
+              {layer.content}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -93,8 +184,19 @@ export function CartPage() {
     <main className="pt-20 min-h-screen bg-[var(--surface)]">
       <section className="py-12">
         <div className="max-w-[1280px] mx-auto px-4 md:px-16">
+          <div className="mb-6">
+            <Link
+              to="/design"
+              className="inline-flex items-center gap-2 text-sm text-[var(--deep-navy)] hover:text-[var(--electric-blue)] font-medium transition-colors group"
+            >
+              <span className="material-symbols-outlined text-base transition-transform group-hover:-translate-x-1">
+                arrow_back
+              </span>
+              Quay lại trang thiết kế
+            </Link>
+          </div>
           <div className="flex justify-between items-center mb-8">
-            <h1 className="font-['Montserrat'] text-3xl md:text-4xl font-bold text-[var(--deep-navy)] mt-4">
+            <h1 className="font-['Montserrat'] text-3xl md:text-4xl font-bold text-[var(--deep-navy)]">
               Giỏ Hàng
               <span className="text-lg font-normal text-[var(--on-surface-variant)] ml-2">
                 ({totalItems} sản phẩm)
@@ -118,9 +220,9 @@ export function CartPage() {
                   className="bg-white border border-[var(--outline-variant)] rounded-xl p-4 md:p-6 shadow-sm"
                 >
                   <div className="flex gap-4 md:gap-6">
-                    {/* T-Shirt Preview */}
+                    {/* T-Shirt Preview — kèm ảnh/chữ đã thiết kế nếu có */}
                     <div className="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 bg-[var(--surface-container-low)] rounded border border-[var(--outline-variant)] p-2">
-                      <TShirtMiniSVG color={item.color} />
+                      <TShirtPreviewWithDesign color={item.color} layers={item.layers} />
                     </div>
 
                     {/* Item Details */}
@@ -131,7 +233,9 @@ export function CartPage() {
                             Áo Thun {item.colorName}
                           </h3>
                           <p className="text-sm text-[var(--on-surface-variant)]">
-                            Mẫu thiết kế tùy chỉnh
+                            {item.layers && item.layers.length > 0
+                              ? `Mẫu thiết kế tùy chỉnh (${item.layers.length} chi tiết)`
+                              : "Mẫu thiết kế tùy chỉnh"}
                           </p>
                         </div>
                         <button
