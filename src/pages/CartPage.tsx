@@ -10,49 +10,6 @@ function isLightColor(hex: string) {
   return luminance > 0.7;
 }
 
-function TShirtMiniSVG({ color }: { color: string }) {
-  const light = isLightColor(color);
-  const strokeColor = light ? "#d1d5db" : "none";
-
-  return (
-    <svg viewBox="0 0 300 290" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <path
-        fill={color}
-        stroke={strokeColor}
-        strokeWidth="1"
-        d="M 97 60
-           L 22 34
-           L 3 72
-           L 60 97
-           L 60 272
-           L 240 272
-           L 240 97
-           L 297 72
-           L 278 34
-           L 203 60
-           C 192 52, 165 35, 150 35
-           C 135 35, 108 52, 97 60 Z"
-      />
-      <path
-        fill={light ? "#e5e7eb" : "rgba(0,0,0,0.08)"}
-        d="M 22 34 L 3 72 L 60 97 L 60 72 Z"
-      />
-      <path
-        fill={light ? "#e5e7eb" : "rgba(0,0,0,0.08)"}
-        d="M 278 34 L 297 72 L 240 97 L 240 72 Z"
-      />
-      <path
-        fill={light ? "#d1d5db" : "rgba(0,0,0,0.13)"}
-        d="M 97 60
-           C 108 78, 136 93, 150 93
-           C 164 93, 192 78, 203 60
-           C 192 52, 165 35, 150 35
-           C 135 35, 108 52, 97 60 Z"
-      />
-    </svg>
-  );
-}
-
 // Preview áo có kèm layer ảnh/chữ đã thiết kế (nếu có), dùng đúng toạ độ %
 // đã lưu trong giỏ hàng để vẽ lại đúng vị trí tương đối như lúc thiết kế.
 // Chỉ vẽ layer thuộc view "front" — đủ cho mục đích xem nhanh trong giỏ hàng.
