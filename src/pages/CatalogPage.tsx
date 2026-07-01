@@ -8,7 +8,7 @@ const products = [
     moq: "50 Sản phẩm",
     price: "Từ 250.000đ",
     image:
-      "https://lh3.googleusercontent.com/aida/AP1WRLtoJColMK4bu0R92GehnCO2l-dTQnm4cDAYfm1kjZIBjV_hdEcXGUvh3D6_DSGzpppWC88R4vpn_9BMqAOFTGBU3D1xnvwVB3qF0EiR3A1dk_uwS9_9_S_9QpKJKmqylX5jPmw8G24cyI70RW-kTm-iJ6aQdZdXokDDLGUL359VQ_IivIFqnAPd4v0PWiGKkj9JQ8v4kIzfOTipF087ZJnhKc_eoH27YanTZe7oaz63XK0nzQAxD-hNggY5",
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQHzSME5RVOQMJySona_hfFGE1vNhnGhz4_iCzkUgsNNw&s=10",
   },
   {
     id: 2,
@@ -17,7 +17,7 @@ const products = [
     moq: "100 Sản phẩm",
     price: "Từ 180.000đ",
     image:
-      "https://lh3.googleusercontent.com/aida/AP1WRLtoJColMK4bu0R92GehnCO2l-dTQnm4cDAYfm1kjZIBjV_hdEcXGUvh3D6_DSGzpppWC88R4vpn_9BMqAOFTGBU3D1xnvwVB3qF0EiR3A1dk_uwS9_9_S_9QpKJKmqylX5jPmw8G24cyI70RW-kTm-iJ6aQdZdXokDDLGUL359VQ_IivIFqnAPd4v0PWiGKkj9JQ8v4kIzfOTipF087ZJnhKc_eoH27YanTZe7oaz63XK0nzQAxD-hNggY5",
+      "https://product.hstatic.net/200000588671/product/ao_thun_polo_cool_pique_2.0_-__den_2d6b7d5e7f414926954ff37257890f39_1024x1024.jpg",
   },
   {
     id: 3,
@@ -26,7 +26,7 @@ const products = [
     moq: "30 Sản phẩm",
     price: "Từ 850.000đ",
     image:
-      "https://lh3.googleusercontent.com/aida/AP1WRLs8uaqQKSHk0sNwuTMGW4VJZs3Qt-PjZBXsyU066e352Y__n1TQfjD0-Bua-0p5cJL0hluxx0gBvxLbZVAuBURPgrBlaadOCS2mtLSRq-Gobk-Lmy0f9r43cRVoMh06RUva018NJiRq2fI-bU5EvqEkKiDWnKzgPkg1_3g-4sMpuGQhYfXq-F33slPtAL9PCHZ5X35pd2sZ_OQ8Q2VXFlyqUGO-aMG7qSTO4bQupO-49LbSxWi3A9FORLM",
+      "https://cdn.hstatic.net/products/1000360022/img_9750_6a174e2b3c7b4aec816d94c5ffd91a49_1024x1024.jpg",
   },
   {
     id: 4,
@@ -35,7 +35,7 @@ const products = [
     moq: "200 Sản phẩm",
     price: "Từ 150.000đ",
     image:
-      "https://lh3.googleusercontent.com/aida/AP1WRLtoJColMK4bu0R92GehnCO2l-dTQnm4cDAYfm1kjZIBjV_hdEcXGUvh3D6_DSGzpppWC88R4vpn_9BMqAOFTGBU3D1xnvwVB3qF0EiR3A1dk_uwS9_9_S_9QpKJKmqylX5jPmw8G24cyI70RW-kTm-iJ6aQdZdXokDDLGUL359VQ_IivIFqnAPd4v0PWiGKkj9JQ8v4kIzfOTipF087ZJnhKc_eoH27YanTZe7oaz63XK0nzQAxD-hNggY5",
+      "https://cdn.hstatic.net/products/1000295889/screenshot_2025-07-01_153759_f0c1f28ca05c4bb28488cb51f5fa6dee_master.png",
   },
   {
     id: 5,
@@ -44,7 +44,7 @@ const products = [
     moq: "50 Sản phẩm",
     price: "Từ 220.000đ",
     image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuApXO0BUrTYhd85yr6bSUfSS6wsWwWztEDOd1PnMl04vRI34dNJFIfr4Q4TePBB82irR3c3GPSqnZK5ikSdo2jc3_7E9hPov2QgOFxQYD_c1iatl57noIUUsxHDzC9Jsu2gJ42F6Wlym7JER8fyhwvU3FjTiNLk_CRI6LCLMlBiPFZwbIVl0jgQJeQCbiS0Qh8JF8eIZA8Qq-23eVVf0DUg-AZf_7jsGULzcprfBowzKcRG1MsijuxzWjhpqHZUYnxrm0D0dl6dO5EP",
+      "https://image.made-in-china.com/202f0j00WbkcVYDhCloC/Crossback-Retro-Waxed-Canvas-Black-Waterproof-Heavy-Duty-Carpenter-Work-Apron-with-Tool-Pockets.webp",
   },
   {
     id: 6,
@@ -53,7 +53,7 @@ const products = [
     moq: "50 Sản phẩm",
     price: "Từ 550.000đ",
     image:
-      "https://lh3.googleusercontent.com/aida/AP1WRLtoJColMK4bu0R92GehnCO2l-dTQnm4cDAYfm1kjZIBjV_hdEcXGUvh3D6_DSGzpppWC88R4vpn_9BMqAOFTGBU3D1xnvwVB3qF0EiR3A1dk_uwS9_9_S_9QpKJKmqylX5jPmw8G24cyI70RW-kTm-iJ6aQdZdXokDDLGUL359VQ_IivIFqnAPd4v0PWiGKkj9JQ8v4kIzfOTipF087ZJnhKc_eoH27YanTZe7oaz63XK0nzQAxD-hNggY5",
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTTAjirgKySrJq_S1-RqN8NDWGRFwY7Q6pM47VT_oUgABae0uARIXsnV_4&s=10",
   },
 ];
 

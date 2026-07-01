@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 
 const heroImage =
-  "https://lh3.googleusercontent.com/aida/AP1WRLvmuvZpCNykyUgQOB78xsl9-BCoz0ezsHSnnor-F0Z7PGdajFYzPwSciCX9Y94XdaNV5MOJVFFZ-Ot7CjVPH00FqyXCnvGdNW3VOaGSdFNhoVo8W-sAaShFTFvQk_5dOmJwpLiWnN-C2JoR5WWOy1egX2CdT5bZ_5mUWb499FuiUX8ATy_uYt4PrT8l_x22hdTA20lph3vUWxHl9idzEDs5o7i9I-Uc6JDWj_j0vkqbgVvzJplitHVQyODV";
+  "/images/Home_img.jpg";
 
 const processImage =
-  "https://lh3.googleusercontent.com/aida/AP1WRLsWF3oZA7PQH7lT0Ut3q5XUnC68b7z4BqOcJWFl68JafeaAbf9jrgAuJq5O8iy6vCbSYmrn87yS7wZ5B22wDF2i73bNy788Z1cwI8RjPwksOH-1zmnoFdIeEPlwkF8Z8Zn3eej7dNfS878yWF4qj3hm1Zy3-vKpvNcr-ulCsryF9rQAQQ2LJwWqoWnxQV0yQSMq_B3N1yFjLTmSQQq-KO8rdZWVc7v9chZzaskDjfCg3V41j8ymc5woorc";
+  "/images/Home_img2.png";
 
 const capabilities = [
   {
@@ -67,13 +67,13 @@ export function HomePage() {
               </button>
             </div>
           </div>
-          <div className="md:col-span-7 relative h-full min-h-[300px] md:min-h-[500px]">
-            <img
-              alt="Farriott App Interface"
-              className="absolute inset-0 w-full h-full object-cover object-center rounded-xl"
-              src={heroImage}
-            />
-          </div>
+          <div className="md:col-span-7 w-full h-[240px] md:h-[350px] md:-mt-14">
+          <img
+            alt="Farriott App Interface"
+            className="w-full h-full object-cover object-center rounded-xl"
+            src={heroImage}
+          />
+        </div>
         </div>
       </section>
 
@@ -114,13 +114,13 @@ export function HomePage() {
                 </li>
               </ul>
             </div>
-            <div className="h-[400px] md:h-[600px] bg-[var(--surface-container-lowest)] rounded border border-[var(--outline-variant)] overflow-hidden shadow-sm">
-              <img
-                alt="Process Dashboard"
-                className="w-full h-full object-cover"
-                src={processImage}
-              />
-            </div>
+            <div className="w-full h-[300px] md:h-[450px] rounded-xl overflow-hidden shadow-md">
+            <img
+              alt="Quy trình sản xuất thực tế"
+              className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-700"
+              src={processImage}
+            />
+          </div>
           </div>
         </div>
       </section>

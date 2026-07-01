@@ -1,5 +1,5 @@
 const heroImage =
-  "https://lh3.googleusercontent.com/aida/AP1WRLvmuvZpCNykyUgQOB78xsl9-BCoz0ezsHSnnor-F0Z7PGdajFYzPwSciCX9Y94XdaNV5MOJVFFZ-Ot7CjVPH00FqyXCnvGdNW3VOaGSdFNhoVo8W-sAaShFTFvQk_5dOmJwpLiWnN-C2JoR5WWOy1egX2CdT5bZ_5mUWb499FuiUX8ATy_uYt4PrT8l_x22hdTA20lph3vUWxHl9idzEDs5o7i9I-Uc6JDWj_j0vkqbgVvzJplitHVQyODV";
+  "/images/About_img.png";
 
 const teamMembers = [
   {

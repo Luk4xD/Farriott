@@ -1,8 +1,8 @@
 const heroImage =
-  "https://lh3.googleusercontent.com/aida/AP1WRLvmuvZpCNykyUgQOB78xsl9-BCoz0ezsHSnnor-F0Z7PGdajFYzPwSciCX9Y94XdaNV5MOJVFFZ-Ot7CjVPH00FqyXCnvGdNW3VOaGSdFNhoVo8W-sAaShFTFvQk_5dOmJwpLiWnN-C2JoR5WWOy1egX2CdT5bZ_5mUWb499FuiUX8ATy_uYt4PrT8l_x22hdTA20lph3vUWxHl9idzEDs5o7i9I-Uc6JDWj_j0vkqbgVvzJplitHVQyODV";
+  "/images/Solution_img.png";
 
 const timelineImage =
-  "https://lh3.googleusercontent.com/aida/AP1WRLvmuvZpCNykyUgQOB78xsl9-BCoz0ezsHSnnor-F0Z7PGdajFYzPwSciCX9Y94XdaNV5MOJVFFZ-Ot7CjVPH00FqyXCnvGdNW3VOaGSdFNhoVo8W-sAaShFTFvQk_5dOmJwpLiWnN-C2JoR5WWOy1egX2CdT5bZ_5mUWb499FuiUX8ATy_uYt4PrT8l_x22hdTA20lph3vUWxHl9idzEDs5o7i9I-Uc6JDWj_j0vkqbgVvzJplitHVQyODV";
+  "/images/Timeline_img.png";
 
 const designImage =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuAJmT1_xudQ1j1E3Yd3IP-qCGEAl3bd1eXIJgRO5mZdaAU2t08JG2iLshIxxHbr91xlJOKBWzsktsCgdNwOFsdk0iK96PGbcFx8p5YLnzpVSCiJgfLwexOxJB_X4FafS8F1IWxcGN0mAFo2Zlsc8OOmbpWVFjkWzd1LnMWzu2_yiTNEWeOe2dWxPvBjTPkZzbv4hSZqlzBRYWf5JW-evODupKcWbfDs-PeOWbQ4LCrLreTdg-ttIHUGZzMFSqGYPOqd2356pFSsx7uA";
@@ -212,13 +212,13 @@ export function SolutionsPage() {
               Tiêu chuẩn hóa mọi khâu sản xuất để đảm bảo chất lượng đồng đều và
               đúng tiến độ cam kết.
             </p>
-            <div className="aspect-[4/5] rounded bg-[var(--surface-container)] overflow-hidden shadow-md">
-              <img
-                alt="Chi tiết quy trình kiểm tra chất lượng sản phẩm may mặc"
-                className="object-cover w-full h-full"
-                src={timelineImage}
-              />
-            </div>
+            <div className="rounded bg-[var(--surface-container)] overflow-hidden shadow-md">
+            <img
+              alt="Chi tiết quy trình kiểm tra chất lượng sản phẩm may mặc"
+              className="w-full h-auto" 
+              src={timelineImage}
+            />
+          </div>
           </div>
 
           <div className="md:col-span-7 md:col-start-6">
