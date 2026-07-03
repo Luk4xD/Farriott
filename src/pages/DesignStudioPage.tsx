@@ -732,44 +732,48 @@ export function DesignStudioPage() {
 
             <div className="flex gap-3 mt-5">
               {(["front", "back"] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  onMouseEnter={() => setView(v)}
-                  className={`w-[60px] h-[60px] p-1.5 rounded border-2 bg-white transition-all ${view === v
-                    ? "border-[var(--deep-navy)] shadow-sm"
-                    : "border-[var(--outline-variant)] opacity-55 hover:opacity-80"
-                    }`}
-                >
-                  {isDefaultMockup ? (
-                    <img
-                      src="/images/shirt_white.png"
-                      alt={v === "front" ? "Mặt trước" : "Mặt sau"}
-                      className={`w-full h-full object-contain ${v === "back" ? "scale-x-[-1]" : ""}`}
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full"
-                      style={{
-                        backgroundColor: selectedColor,
-                        WebkitMaskImage: 'url(/images/shirt_white.png)',
-                        WebkitMaskSize: 'contain',
-                        WebkitMaskRepeat: 'no-repeat',
-                        WebkitMaskPosition: 'center',
-                        maskImage: 'url(/images/shirt_white.png)',
-                        maskSize: 'contain',
-                        maskRepeat: 'no-repeat',
-                        maskPosition: 'center',
-                        transform: v === "back" ? "scaleX(-1)" : "none"
-                      }}
-                    >
+                <div key={v} className="flex flex-col items-center gap-1">
+                  <button
+                    onClick={() => setView(v)}
+                    onMouseEnter={() => setView(v)}
+                    className={`w-[60px] h-[60px] p-1.5 rounded border-2 bg-white transition-all ${view === v
+                      ? "border-[var(--deep-navy)] shadow-sm"
+                      : "border-[var(--outline-variant)] opacity-55 hover:opacity-80"
+                      }`}
+                  >
+                    {isDefaultMockup ? (
                       <img
                         src="/images/shirt_white.png"
-                        className="w-full h-full object-contain mix-blend-multiply"
+                        alt={v === "front" ? "Mặt trước" : "Mặt sau"}
+                        className={`w-full h-full object-contain ${v === "back" ? "scale-x-[-1]" : ""}`}
                       />
-                    </div>
-                  )}
-                </button>
+                    ) : (
+                      <div
+                        className="w-full h-full"
+                        style={{
+                          backgroundColor: selectedColor,
+                          WebkitMaskImage: 'url(/images/shirt_white.png)',
+                          WebkitMaskSize: 'contain',
+                          WebkitMaskRepeat: 'no-repeat',
+                          WebkitMaskPosition: 'center',
+                          maskImage: 'url(/images/shirt_white.png)',
+                          maskSize: 'contain',
+                          maskRepeat: 'no-repeat',
+                          maskPosition: 'center',
+                          transform: v === "back" ? "scaleX(-1)" : "none"
+                        }}
+                      >
+                        <img
+                          src="/images/shirt_white.png"
+                          className="w-full h-full object-contain mix-blend-multiply"
+                        />
+                      </div>
+                    )}
+                  </button>
+                  <span className="text-[10px] text-gray-500 font-medium select-none">
+                    {v === "front" ? "Mặt trước" : "Mặt sau"}
+                  </span>
+                </div>
               ))}
             </div>
           </div>

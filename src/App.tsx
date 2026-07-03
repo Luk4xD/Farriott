@@ -10,6 +10,7 @@ import { AboutPage } from "@/pages/AboutPage";
 import { DesignStudioPage } from "@/pages/DesignStudioPage";
 import { QuoteRequestPage } from "@/pages/QuoteRequestPage";
 import { CartPage } from "@/pages/CartPage";
+import { CheckoutPage } from "@/pages/CheckoutPage";
 import { CartProvider } from "@/context/CartContext";
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
             <Route path="/design" element={<DesignStudioPage />} />
             <Route path="/quote" element={<QuoteRequestPage />} />
             <Route path="/cart" element={<CartPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
           </Routes>
           <Footer />
           <BottomNavBar />

@@ -273,10 +273,13 @@ export function CartPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <button className="w-full bg-[var(--deep-navy)] text-white font-medium py-4 rounded hover:bg-[var(--electric-blue)] transition-colors duration-300 flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined">request_quote</span>
-                    Yêu cầu báo giá
-                  </button>
+                  <Link
+                    to="/checkout"
+                    className="w-full bg-[var(--deep-navy)] text-white font-medium py-4 rounded hover:bg-[var(--electric-blue)] transition-colors duration-300 flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined">shopping_cart_checkout</span>
+                    Tiến hành thanh toán
+                  </Link>
                   <Link
                     to="/design"
                     className="w-full border border-[var(--outline-variant)] text-[var(--deep-navy)] font-medium py-4 rounded hover:border-[var(--deep-navy)] transition-colors duration-300 flex items-center justify-center gap-2"
