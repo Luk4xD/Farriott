@@ -16,9 +16,11 @@ function isLightColor(hex: string) {
 function TShirtPreviewWithDesign({
   color,
   layers,
+  styleImage,
 }: {
   color: string;
   layers?: import("@/context/CartContext").CartLayer[];
+  styleImage?: string;
 }) {
   const frontLayers = (layers || []).filter((l) => l.view === "front");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,24 +39,26 @@ function TShirtPreviewWithDesign({
     return () => observer.disconnect();
   }, []);
 
+  const bgImg = styleImage || "/images/shirt_white.png";
+
   return (
     <div ref={containerRef} className="relative w-full h-full">
       <div
         className="absolute inset-0 w-full h-full"
         style={{
           backgroundColor: color,
-          WebkitMaskImage: "url(/images/shirt_white.png)",
+          WebkitMaskImage: `url(${bgImg})`,
           WebkitMaskSize: "contain",
           WebkitMaskRepeat: "no-repeat",
           WebkitMaskPosition: "center",
-          maskImage: "url(/images/shirt_white.png)",
+          maskImage: `url(${bgImg})`,
           maskSize: "contain",
           maskRepeat: "no-repeat",
           maskPosition: "center",
         }}
       >
         <img
-          src="/images/shirt_white.png"
+          src={bgImg}
           alt="Colored Shirt"
           className="w-full h-full object-contain mix-blend-multiply"
         />
@@ -179,7 +183,7 @@ export function CartPage() {
                   <div className="flex gap-4 md:gap-6">
                     {/* T-Shirt Preview — kèm ảnh/chữ đã thiết kế nếu có */}
                     <div className="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 bg-[var(--surface-container-low)] rounded border border-[var(--outline-variant)] p-2">
-                      <TShirtPreviewWithDesign color={item.color} layers={item.layers} />
+                      <TShirtPreviewWithDesign color={item.color} layers={item.layers} styleImage={item.styleImage} />
                     </div>
 
                     {/* Item Details */}
@@ -187,7 +191,7 @@ export function CartPage() {
                       <div className="flex justify-between items-start">
                         <div>
                           <h3 className="font-semibold text-[var(--deep-navy)] text-lg">
-                            Áo Thun {item.colorName}
+                            {item.styleName || "Áo Thun"} {item.colorName}
                           </h3>
                           <p className="text-sm text-[var(--on-surface-variant)]">
                             {item.layers && item.layers.length > 0

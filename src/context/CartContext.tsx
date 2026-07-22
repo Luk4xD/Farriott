@@ -27,6 +27,9 @@ export interface CartItem {
   createdAt: Date;
   // Chi tiết thiết kế đầy đủ (tuỳ chọn — để tương thích với code cũ chưa gửi layers)
   layers?: CartLayer[];
+  styleId?: string;
+  styleName?: string;
+  styleImage?: string;
 }
 
 interface CartContextType {

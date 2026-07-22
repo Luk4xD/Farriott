@@ -13,9 +13,11 @@ function isLightColor(hex: string) {
 function TShirtPreviewWithDesign({
   color,
   layers,
+  styleImage,
 }: {
   color: string;
   layers?: import("@/context/CartContext").CartLayer[];
+  styleImage?: string;
 }) {
   const frontLayers = (layers || []).filter((l) => l.view === "front");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,24 +33,26 @@ function TShirtPreviewWithDesign({
     return () => observer.disconnect();
   }, []);
 
+  const bgImg = styleImage || "/images/shirt_white.png";
+
   return (
     <div ref={containerRef} className="relative w-full h-full">
       <div
         className="absolute inset-0 w-full h-full"
         style={{
           backgroundColor: color,
-          WebkitMaskImage: "url(/images/shirt_white.png)",
+          WebkitMaskImage: `url(${bgImg})`,
           WebkitMaskSize: "contain",
           WebkitMaskRepeat: "no-repeat",
           WebkitMaskPosition: "center",
-          maskImage: "url(/images/shirt_white.png)",
+          maskImage: `url(${bgImg})`,
           maskSize: "contain",
           maskRepeat: "no-repeat",
           maskPosition: "center",
         }}
       >
         <img
-          src="/images/shirt_white.png"
+          src={bgImg}
           alt="Colored Shirt"
           className="w-full h-full object-contain mix-blend-multiply"
         />
@@ -378,11 +382,12 @@ export function CheckoutPage() {
                       <TShirtPreviewWithDesign
                         color={item.color}
                         layers={item.layers}
+                        styleImage={item.styleImage}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-800 text-sm truncate">
-                        Áo Thun {item.colorName}
+                        {item.styleName || "Áo Thun"} {item.colorName}
                       </h3>
                       <p className="text-xs text-gray-500 mb-1">Thiết kế tùy chỉnh</p>
                       <div className="flex flex-wrap gap-1">

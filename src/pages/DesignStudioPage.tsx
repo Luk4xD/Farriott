@@ -21,6 +21,27 @@ const shirtColors = [
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "XXXXL", "XXXXXL"];
 
+const SHIRT_STYLES = [
+  {
+    id: "short-sleeve",
+    name: "Tay ngắn (T-shirt)",
+    desc: "Cổ tròn tay ngắn trẻ trung",
+    image: "/images/shirt_white.png",
+  },
+  {
+    id: "long-sleeve",
+    name: "Tay dài (Long sleeve)",
+    desc: "Cổ tròn tay dài ấm áp, lịch sự",
+    image: "/images/shirt_white_with_sleeve.png",
+  },
+  {
+    id: "tank-top",
+    name: "Không có tay (Tank-top)",
+    desc: "Áo ba lỗ thể thao, năng động",
+    image: "/images/shirt_tank_top.png",
+  },
+];
+
 const BASE_PRICE = 152000;
 
 // Vùng in tham chiếu (theo tỉ lệ % khi KHÔNG zoom) — dùng để quy đổi vị trí/kích thước
@@ -28,9 +49,8 @@ const BASE_PRICE = 152000;
 const PRINT_AREA_BASE = { top: 0.2, left: 0.28, width: 0.44, height: 0.5 };
 
 const tools = [
-  { icon: "style", label: "Chọn phối" },
+  { icon: "style", label: "Chọn mẫu áo" },
   { icon: "title", label: "Thêm chữ" },
-  { icon: "photo_library", label: "Chọn ảnh từ thư viện" },
   { icon: "upload", label: "Upload ảnh" },
   { icon: "person", label: "Thiết kế của tôi" },
   { icon: "share", label: "Share" },
@@ -246,6 +266,15 @@ type SizeQty = Record<string, number>;
 
 export function DesignStudioPage() {
   const [selectedColor, setSelectedColor] = useState("#1a1a1a");
+  const [selectedStyleId, setSelectedStyleId] = useState("short-sleeve");
+  const [hoveredStyleId, setHoveredStyleId] = useState<string | null>(null);
+  const selectedStyle = useMemo(() => {
+    return SHIRT_STYLES.find((s) => s.id === selectedStyleId) || SHIRT_STYLES[0];
+  }, [selectedStyleId]);
+  const displayedStyle = useMemo(() => {
+    const targetId = hoveredStyleId || selectedStyleId;
+    return SHIRT_STYLES.find((s) => s.id === targetId) || SHIRT_STYLES[0];
+  }, [hoveredStyleId, selectedStyleId]);
   const [view, setView] = useState<"front" | "back">("front");
   const [quantities, setQuantities] = useState<SizeQty>(
     Object.fromEntries(SIZES.map((s) => [s, 0]))
@@ -426,6 +455,9 @@ export function DesignStudioPage() {
         sizes,
         totalPrice: grandTotal,
         layers: cartLayers,
+        styleId: selectedStyle.id,
+        styleName: selectedStyle.name,
+        styleImage: selectedStyle.image,
       });
 
       setAddedToCart(true);
@@ -460,7 +492,7 @@ export function DesignStudioPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="hidden md:flex flex-col w-60 flex-shrink-0 bg-white border-r border-[var(--outline-variant)] overflow-y-auto">
+        <aside className="hidden md:flex flex-col w-60 flex-shrink-0 bg-white border-r border-[var(--outline-variant)] relative overflow-visible">
           <div className="p-4 border-b border-[var(--outline-variant)]">
             <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] text-center mb-3">
               Chọn Màu
@@ -496,25 +528,65 @@ export function DesignStudioPage() {
 
           <div className="p-2 border-b border-[var(--outline-variant)]">
             {tools.map((tool) => (
-              <button
-                key={tool.label}
-                onClick={() => {
-                  if (tool.label === "Upload ảnh") {
-                    fileInputRef.current?.click();
-                  } else {
-                    setActiveTool(activeTool === tool.label ? null : tool.label);
-                  }
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-colors ${activeTool === tool.label
-                  ? "bg-[var(--primary-fixed)] text-[var(--deep-navy)] font-medium"
-                  : "text-[var(--on-surface)] hover:bg-[var(--surface-container-low)] hover:text-[var(--deep-navy)]"
-                  }`}
-              >
-                <span className="material-symbols-outlined text-[20px] text-[var(--deep-navy)]">
-                  {tool.icon}
-                </span>
-                {tool.label}
-              </button>
+              <div key={tool.label} className="relative">
+                <button
+                  onClick={() => {
+                    if (tool.label === "Upload ảnh") {
+                      fileInputRef.current?.click();
+                    } else {
+                      setActiveTool(activeTool === tool.label ? null : tool.label);
+                    }
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-colors ${activeTool === tool.label
+                    ? "bg-[var(--primary-fixed)] text-[var(--deep-navy)] font-medium"
+                    : "text-[var(--on-surface)] hover:bg-[var(--surface-container-low)] hover:text-[var(--deep-navy)]"
+                    }`}
+                >
+                  <span className="material-symbols-outlined text-[20px] text-[var(--deep-navy)]">
+                    {tool.icon}
+                  </span>
+                  {tool.label}
+                </button>
+
+                {tool.icon === "style" && activeTool === tool.label && (
+                  <div
+                    className="absolute left-full top-0 ml-2 w-72 bg-white border border-[var(--outline-variant)] rounded-xl shadow-xl p-4 z-50 space-y-3"
+                    onMouseLeave={() => setHoveredStyleId(null)}
+                  >
+                    <div className="flex justify-between items-center pb-2 border-b border-[var(--outline-variant)]">
+                      <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
+                        Chọn phối áo
+                      </p>
+                      <button
+                        onClick={() => setActiveTool(null)}
+                        className="text-[var(--on-surface-variant)] hover:text-red-500 transition-colors flex items-center justify-center"
+                      >
+                        <span className="material-symbols-outlined text-base">close</span>
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      {SHIRT_STYLES.map((style) => (
+                        <button
+                          key={style.id}
+                          onClick={() => setSelectedStyleId(style.id)}
+                          onMouseEnter={() => setHoveredStyleId(style.id)}
+                          className={`w-full text-left p-3 rounded-lg border-2 transition-all flex flex-col gap-1 ${selectedStyleId === style.id
+                            ? "border-[var(--electric-blue)] bg-blue-50/50"
+                            : "border-[var(--outline-variant)] hover:border-[var(--deep-navy)] bg-white"
+                            }`}
+                        >
+                          <span className="font-semibold text-sm text-[var(--deep-navy)]">
+                            {style.name}
+                          </span>
+                          <span className="text-xs text-[var(--on-surface-variant)]">
+                            {style.desc}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
 
@@ -674,7 +746,7 @@ export function DesignStudioPage() {
             >
               {isDefaultMockup ? (
                 <img
-                  src="/images/shirt_white.png"
+                  src={displayedStyle.image}
                   alt={view === "front" ? "Áo mẫu mặt trước" : "Áo mẫu mặt sau"}
                   className={`max-w-full max-h-full object-contain drop-shadow-md transition-transform duration-300 ${view === "back" ? "scale-x-[-1]" : ""}`}
                 />
@@ -683,11 +755,11 @@ export function DesignStudioPage() {
                   className="absolute w-full h-full transition-transform duration-300"
                   style={{
                     backgroundColor: selectedColor,
-                    WebkitMaskImage: 'url(/images/shirt_white.png)',
+                    WebkitMaskImage: `url(${displayedStyle.image})`,
                     WebkitMaskSize: 'contain',
                     WebkitMaskRepeat: 'no-repeat',
                     WebkitMaskPosition: 'center',
-                    maskImage: 'url(/images/shirt_white.png)',
+                    maskImage: `url(${displayedStyle.image})`,
                     maskSize: 'contain',
                     maskRepeat: 'no-repeat',
                     maskPosition: 'center',
@@ -695,7 +767,7 @@ export function DesignStudioPage() {
                   }}
                 >
                   <img
-                    src="/images/shirt_white.png"
+                    src={displayedStyle.image}
                     alt="Colored Shirt"
                     className="w-full h-full object-contain mix-blend-multiply"
                   />
@@ -743,7 +815,7 @@ export function DesignStudioPage() {
                   >
                     {isDefaultMockup ? (
                       <img
-                        src="/images/shirt_white.png"
+                        src={displayedStyle.image}
                         alt={v === "front" ? "Mặt trước" : "Mặt sau"}
                         className={`w-full h-full object-contain ${v === "back" ? "scale-x-[-1]" : ""}`}
                       />
@@ -752,11 +824,11 @@ export function DesignStudioPage() {
                         className="w-full h-full"
                         style={{
                           backgroundColor: selectedColor,
-                          WebkitMaskImage: 'url(/images/shirt_white.png)',
+                          WebkitMaskImage: `url(${displayedStyle.image})`,
                           WebkitMaskSize: 'contain',
                           WebkitMaskRepeat: 'no-repeat',
                           WebkitMaskPosition: 'center',
-                          maskImage: 'url(/images/shirt_white.png)',
+                          maskImage: `url(${displayedStyle.image})`,
                           maskSize: 'contain',
                           maskRepeat: 'no-repeat',
                           maskPosition: 'center',
@@ -764,7 +836,7 @@ export function DesignStudioPage() {
                         }}
                       >
                         <img
-                          src="/images/shirt_white.png"
+                          src={displayedStyle.image}
                           className="w-full h-full object-contain mix-blend-multiply"
                         />
                       </div>
@@ -821,7 +893,7 @@ export function DesignStudioPage() {
             <div className="space-y-1.5 text-sm">
               <p>
                 <span className="font-medium text-[var(--on-surface)]">Tên sản phẩm: </span>
-                <span className="text-[var(--on-surface-variant)]">Cổ tròn tay ngắn</span>
+                <span className="text-[var(--on-surface-variant)]">{displayedStyle.name}</span>
               </p>
               <p>
                 <span className="font-medium text-[var(--on-surface)]">Loại vải: </span>
