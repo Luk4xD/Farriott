@@ -111,12 +111,8 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
-const ALL_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "XXXXL", "XXXXXL"];
-
 export function CartPage() {
-  const { items, removeItem, updateSizes, clearCart, totalItems, totalPrice } = useCart();
-  const [editingItem, setEditingItem] = useState<import("@/context/CartContext").CartItem | null>(null);
-  const [editQuantities, setEditQuantities] = useState<Record<string, number>>({});
+  const { items, removeItem, clearCart, totalItems, totalPrice } = useCart();
 
   if (items.length === 0) {
     return (
