@@ -41,7 +41,7 @@ const values = [
 
 export function HomePage() {
   return (
-    <main className="pt-20 flex flex-col min-h-screen">
+    <main className="flex flex-col min-h-screen">
       <section className="relative bg-[var(--surface-container-lowest)] overflow-hidden">
         <div className="max-w-[1280px] mx-auto px-4 md:px-16 py-[120px] grid grid-cols-1 md:grid-cols-12 gap-6 items-center min-h-[80vh]">
           <div className="md:col-span-5 z-10">

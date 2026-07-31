@@ -44,7 +44,7 @@ export function QuoteRequestPage() {
   };
 
   return (
-    <main className="pt-20 min-h-screen bg-[var(--surface)]">
+    <main className="min-h-screen bg-[var(--surface)]">
       <section className="bg-[var(--surface-container-lowest)] py-16">
         <div className="max-w-[1280px] mx-auto px-4 md:px-16">
           <div className="max-w-2xl mx-auto">

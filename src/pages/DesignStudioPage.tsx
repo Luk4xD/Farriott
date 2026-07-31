@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, memo, useCallback } from "react";
 import { Rnd } from "react-rnd";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 
 // --- Data ---
@@ -587,15 +588,71 @@ export function DesignStudioPage() {
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [addedToCart, setAddedToCart] = useState(false);
   const [isSavingToCart, setIsSavingToCart] = useState(false);
-  const { addItem } = useCart();
+  const { items, addItem, updateItem } = useCart();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editCartId = searchParams.get("editCartId");
 
   const [isDefaultMockup, setIsDefaultMockup] = useState(true);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [isAttributesOpen, setIsAttributesOpen] = useState(true);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(true);
 
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
   const [isInteractingLayer, setIsInteractingLayer] = useState(false);
+  // Khôi phục thiết kế từ giỏ hàng nếu có editCartId trên URL
+  useEffect(() => {
+    if (!editCartId) return;
+    const itemToEdit = items.find((it) => it.id === editCartId);
+    if (!itemToEdit) return;
+
+    if (itemToEdit.color) {
+      setSelectedColor(itemToEdit.color);
+      setIsDefaultMockup(false);
+    }
+    if (itemToEdit.styleId) {
+      setSelectedStyleId(itemToEdit.styleId);
+    }
+    if (itemToEdit.sizes) {
+      const qMap: Record<string, number> = Object.fromEntries(
+        SIZES.map((s) => [s, 0])
+      );
+      itemToEdit.sizes.forEach((sz) => {
+        qMap[sz.size] = sz.quantity;
+      });
+      setQuantities(qMap);
+    }
+    if (itemToEdit.layers) {
+      const restoredLayers: Layer[] = itemToEdit.layers.map((l) => {
+        if (l.type === "image") {
+          return {
+            id: l.id || uid(),
+            type: "image",
+            src: l.src || "",
+            view: l.view,
+            xPct: l.xPct,
+            yPct: l.yPct,
+            widthPct: l.widthPct,
+            heightPct: l.heightPct,
+          };
+        }
+        return {
+          id: l.id || uid(),
+          type: "text",
+          content: l.content || "",
+          fontSizePct: l.fontSizePct || 8,
+          view: l.view,
+          xPct: l.xPct,
+          yPct: l.yPct,
+          widthPct: l.widthPct,
+          heightPct: l.heightPct,
+        };
+      });
+      setLayers(restoredLayers);
+    }
+  }, [editCartId]);
 
   useEffect(() => {
     if (!isInteractingLayer) return;
@@ -754,16 +811,29 @@ export function DesignStudioPage() {
         })
       );
 
-      addItem({
-        color: selectedColor,
-        colorName,
-        sizes,
-        totalPrice: grandTotal,
-        layers: cartLayers,
-        styleId: selectedStyle.id,
-        styleName: selectedStyle.name,
-        styleImage: selectedStyle.image,
-      });
+      if (editCartId) {
+        updateItem(editCartId, {
+          color: selectedColor,
+          colorName,
+          sizes,
+          totalPrice: grandTotal,
+          layers: cartLayers,
+          styleId: selectedStyle.id,
+          styleName: selectedStyle.name,
+          styleImage: selectedStyle.image,
+        });
+      } else {
+        addItem({
+          color: selectedColor,
+          colorName,
+          sizes,
+          totalPrice: grandTotal,
+          layers: cartLayers,
+          styleId: selectedStyle.id,
+          styleName: selectedStyle.name,
+          styleImage: selectedStyle.image,
+        });
+      }
 
       setAddedToCart(true);
       setTimeout(() => setAddedToCart(false), 2800);
@@ -775,11 +845,76 @@ export function DesignStudioPage() {
     }
   };
 
+  const handleCheckout = async () => {
+    const colorInfo = shirtColors.find((c) => c.hex === selectedColor);
+    const colorName = colorInfo?.name || "Tùy chỉnh";
+
+    const sizes = SIZES.filter((s) => quantities[s] > 0).map((s) => ({
+      size: s,
+      quantity: quantities[s],
+    }));
+
+    if (sizes.length === 0) {
+      alert("Vui lòng chọn ít nhất một size với số lượng > 0");
+      return;
+    }
+
+    setIsSavingToCart(true);
+    try {
+      const cartLayers = await Promise.all(
+        layers.map(async (layer) => {
+          if (layer.type === "image") {
+            const dataUrl = await urlToDataUrl(layer.src);
+            return {
+              id: layer.id,
+              type: "image" as const,
+              view: layer.view,
+              xPct: layer.xPct,
+              yPct: layer.yPct,
+              widthPct: layer.widthPct,
+              heightPct: layer.heightPct,
+              src: dataUrl,
+            };
+          }
+          return {
+            id: layer.id,
+            type: "text" as const,
+            view: layer.view,
+            xPct: layer.xPct,
+            yPct: layer.yPct,
+            widthPct: layer.widthPct,
+            heightPct: layer.heightPct,
+            content: layer.content,
+            fontSizePct: layer.fontSizePct,
+          };
+        })
+      );
+
+      addItem({
+        color: selectedColor,
+        colorName,
+        sizes,
+        totalPrice: grandTotal,
+        layers: cartLayers,
+        styleId: selectedStyle.id,
+        styleName: selectedStyle.name,
+        styleImage: selectedStyle.image,
+      });
+
+      navigate("/checkout");
+    } catch (err) {
+      console.error("Lỗi khi chuyển đến trang thanh toán:", err);
+      alert("Có lỗi khi lưu thiết kế. Vui lòng thử lại.");
+    } finally {
+      setIsSavingToCart(false);
+    }
+  };
+
   const visibleLayers = layers.filter((l) => l.view === view);
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
 
   return (
-    <main className="pt-20 min-h-screen bg-[var(--surface)] flex flex-col">
+    <main className="min-h-screen bg-[var(--surface)] flex flex-col">
       <input
         type="file"
         ref={fileInputRef}
@@ -787,241 +922,144 @@ export function DesignStudioPage() {
         accept="image/*"
         className="hidden"
       />
-      <div className="bg-white border-b border-[var(--outline-variant)] py-5 text-center flex-shrink-0">
-        <h1 className="font-['Montserrat'] text-2xl md:text-3xl font-bold text-[var(--deep-navy)] mt-4">
-          Ứng Dụng Thiết Kế
-        </h1>
-        <p className="text-sm text-[var(--on-surface-variant)] mt-1">
-          Cá nhân hoá đồng phục và đặt hàng trực tiếp với Farriott
-        </p>
-      </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="hidden md:flex flex-col w-60 flex-shrink-0 bg-white border-r border-[var(--outline-variant)] relative overflow-visible">
-          <div className="p-3 border-b border-[var(--outline-variant)]">
-            <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] text-center mb-3">
-              Chọn Màu Áo
-            </p>
-            <PhotoshopColorPicker
-              color={selectedColor}
-              onChange={(hex) => {
-                setSelectedColor(hex);
-                setIsDefaultMockup(false);
-              }}
-            />
-          </div>
-
-          <div className="p-2 border-b border-[var(--outline-variant)]">
-            {tools.map((tool) => (
-              <div key={tool.label} className="relative">
-                <button
-                  onClick={() => {
-                    if (tool.label === "Upload ảnh") {
-                      fileInputRef.current?.click();
-                    } else {
-                      setActiveTool(activeTool === tool.label ? null : tool.label);
-                    }
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-colors ${activeTool === tool.label
-                    ? "bg-[var(--primary-fixed)] text-[var(--deep-navy)] font-medium"
-                    : "text-[var(--on-surface)] hover:bg-[var(--surface-container-low)] hover:text-[var(--deep-navy)]"
-                    }`}
-                >
-                  <span className="material-symbols-outlined text-[20px] text-[var(--deep-navy)]">
-                    {tool.icon}
-                  </span>
-                  {tool.label}
-                </button>
-
-                {tool.icon === "style" && activeTool === tool.label && (
-                  <div
-                    className="absolute left-full top-0 ml-2 w-72 bg-white border border-[var(--outline-variant)] rounded-xl shadow-xl p-4 z-50 space-y-3"
-                    onMouseLeave={() => setHoveredStyleId(null)}
-                  >
-                    <div className="flex justify-between items-center pb-2 border-b border-[var(--outline-variant)]">
-                      <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
-                        Chọn phối áo
-                      </p>
-                      <button
-                        onClick={() => setActiveTool(null)}
-                        className="text-[var(--on-surface-variant)] hover:text-red-500 transition-colors flex items-center justify-center"
-                      >
-                        <span className="material-symbols-outlined text-base">close</span>
-                      </button>
-                    </div>
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                      {SHIRT_STYLES.map((style) => (
-                        <button
-                          key={style.id}
-                          onClick={() => setSelectedStyleId(style.id)}
-                          onMouseEnter={() => setHoveredStyleId(style.id)}
-                          className={`w-full text-left p-3 rounded-lg border-2 transition-all flex flex-col gap-1 ${selectedStyleId === style.id
-                            ? "border-[var(--electric-blue)] bg-blue-50/50"
-                            : "border-[var(--outline-variant)] hover:border-[var(--deep-navy)] bg-white"
-                            }`}
-                        >
-                          <span className="font-semibold text-sm text-[var(--deep-navy)]">
-                            {style.name}
-                          </span>
-                          <span className="text-xs text-[var(--on-surface-variant)]">
-                            {style.desc}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {activeTool === "Thêm chữ" && (
-            <div className="p-4 border-b border-[var(--outline-variant)] space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
-                Thêm chữ
-              </p>
-              <textarea
-                value={textDraft}
-                onChange={(e) => setTextDraft(e.target.value)}
-                onKeyDown={handleTextDraftKeyDown}
-                placeholder={"Nhập chữ của bạn...\n(Enter để xuống dòng)"}
-                rows={3}
-                className="w-full text-sm border border-[var(--outline-variant)] rounded p-2 resize-none focus:border-[var(--deep-navy)] focus:outline-none transition-colors"
-              />
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-[var(--on-surface-variant)]">
-                    Cỡ chữ
-                  </label>
-                  <span className="text-xs font-semibold text-[var(--deep-navy)]">
-                    {textDraftSize}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={3}
-                  max={20}
-                  step={0.5}
-                  value={textDraftSize}
-                  onChange={(e) => setTextDraftSize(parseFloat(e.target.value))}
-                  className="w-full accent-[var(--electric-blue)]"
-                />
-              </div>
-
-              <button
-                onClick={handleAddText}
-                disabled={!textDraft.trim()}
-                className="w-full py-2 rounded text-sm font-semibold bg-[var(--electric-blue)] text-white hover:bg-[var(--deep-navy)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Thêm vào áo
-              </button>
-            </div>
-          )}
-
-          {selectedLayer && (
-            <div
-              className="p-4 border-b border-[var(--outline-variant)] space-y-3"
-              style={{ minHeight: "260px" }}
+        {/* Left Sidebar: Attributes, Sizes, Total & Cart */}
+        <aside className="w-72 flex-shrink-0 bg-white border-r border-[var(--outline-variant)] overflow-y-auto flex flex-col">
+          <div className="p-4 border-b border-[var(--outline-variant)]">
+            <button
+              onClick={() => setIsAttributesOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between mb-2 text-left group"
             >
-              <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
-                {selectedLayer.type === "text" ? "Chỉnh chữ đang chọn" : "Ảnh đang chọn"}
-              </p>
-
-              {selectedLayer.type === "text" ? (
-                <>
-                  <textarea
-                    value={selectedLayer.content}
-                    onChange={(e) =>
-                      updateLayer(selectedLayer.id, { content: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full text-sm border border-[var(--outline-variant)] rounded p-2 resize-none focus:border-[var(--deep-navy)] focus:outline-none transition-colors"
-                  />
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-medium text-[var(--on-surface-variant)]">
-                        Cỡ chữ
-                      </label>
-                      <span className="text-xs font-semibold text-[var(--deep-navy)]">
-                        {selectedLayer.fontSizePct}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={3}
-                      max={20}
-                      step={0.5}
-                      value={selectedLayer.fontSizePct}
-                      onChange={(e) =>
-                        updateLayer(selectedLayer.id, {
-                          fontSizePct: parseFloat(e.target.value),
-                        })
-                      }
-                      className="w-full accent-[var(--electric-blue)]"
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center gap-3 p-2 border border-[var(--outline-variant)] rounded">
-                  <img
-                    src={selectedLayer.src}
-                    alt="Ảnh đang chọn"
-                    className="w-12 h-12 object-contain rounded border border-[var(--outline-variant)]"
-                  />
-                  <p className="text-xs text-[var(--on-surface-variant)]">
-                    Kéo hoặc resize ảnh trực tiếp trên áo.
-                  </p>
-                </div>
-              )}
-
-              <button
-                onClick={() => removeLayer(selectedLayer.id)}
-                className="w-full py-2 rounded text-sm font-semibold border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
-              >
-                {selectedLayer.type === "text" ? "Xoá chữ này" : "Xoá ảnh này"}
-              </button>
-            </div>
-          )}
-
-          <div className="p-4">
-            <button className="w-full flex items-center justify-between px-3 py-2.5 border border-[var(--outline-variant)] rounded text-sm text-[var(--on-surface)] hover:border-[var(--deep-navy)] transition-colors">
-              <span>Họa tiết</span>
-              <span className="material-symbols-outlined text-[20px] text-[var(--on-surface-variant)]">
+              <h3 className="font-['Montserrat'] text-xs font-semibold text-[var(--deep-navy)]">
+                Thuộc tính áo
+              </h3>
+              <span className="material-symbols-outlined text-[var(--on-surface-variant)] text-[18px] transition-transform duration-200 group-hover:text-[var(--deep-navy)]" style={{ transform: isAttributesOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
                 expand_more
               </span>
             </button>
+
+            {isAttributesOpen && (
+              <div className="mt-3 space-y-3">
+                <div className="space-y-1.5 text-xs">
+                  <p>
+                    <span className="font-medium text-[var(--on-surface)]">Tên sản phẩm: </span>
+                    <span className="text-[var(--on-surface-variant)]">{displayedStyle.name}</span>
+                  </p>
+                  <p>
+                    <span className="font-medium text-[var(--on-surface)]">Loại vải: </span>
+                    <span className="text-[var(--on-surface-variant)]">95% cotton, 5% spandex</span>
+                  </p>
+                  <p>
+                    <span className="font-medium text-[var(--on-surface)]">Loại in: </span>
+                    <span className="text-[var(--on-surface-variant)]">DTF / Decal đa sắc</span>
+                  </p>
+                </div>
+                <button className="inline-flex items-center gap-1.5 text-xs text-[var(--on-surface-variant)] border border-[var(--outline-variant)] rounded px-3 py-1.5 hover:border-[var(--deep-navy)] hover:text-[var(--deep-navy)] transition-colors">
+                  <span className="material-symbols-outlined text-[14px]">straighten</span>
+                  Thông tin size
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-b border-[var(--outline-variant)]">
+            <h3 className="text-xs font-semibold text-[var(--deep-navy)] mb-3">
+              Size áo
+            </h3>
+            <div className="grid grid-cols-3 gap-x-2 gap-y-3">
+              {SIZES.map((size) => (
+                <div key={size} className="flex flex-col items-center gap-1">
+                  <label className="text-xs font-semibold text-[var(--on-surface-variant)] text-center w-full">
+                    {size}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={quantities[size]}
+                    onChange={(e) => updateQty(size, parseInt(e.target.value) || 0)}
+                    className="w-full text-center text-xs border border-[var(--outline-variant)] rounded py-1.5 focus:border-[var(--deep-navy)] focus:outline-none transition-colors [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+                  />
+                </div>
+              ))}
+            </div>
+            {totalQty > 0 && (
+              <div className="mt-3 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[var(--electric-blue)] text-[16px]">
+                  info
+                </span>
+                <p className="text-xs text-[var(--electric-blue)] font-medium">
+                  Tổng: {totalQty} sản phẩm
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 flex-1 flex flex-col justify-between">
+            <div>
+              <h3 className="font-['Montserrat'] text-base font-semibold text-[var(--deep-navy)] mb-3">
+                Tổng cộng:
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between text-[var(--on-surface-variant)]">
+                  <span>Tiền áo</span>
+                  <span>{shirtTotal.toLocaleString("vi-VN")}đ</span>
+                </div>
+                <div className="flex justify-between text-[var(--on-surface-variant)]">
+                  <span>Tiền in</span>
+                  <span>0đ</span>
+                </div>
+                <div className="flex justify-between text-[var(--on-surface-variant)]">
+                  <span>Tiền ảnh</span>
+                  <span>0đ</span>
+                </div>
+                <div className="flex justify-between items-baseline pt-2 border-t border-[var(--outline-variant)]">
+                  <span className="text-sm text-[var(--on-surface-variant)]">Tổng cộng:</span>
+                  <span className="font-['Montserrat'] text-2xl font-bold text-[var(--deep-navy)]">
+                    {grandTotal.toLocaleString("vi-VN")}đ
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--cool-silver)] italic">
+                  Giá đã bao gồm 8% VAT
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              <button
+                onClick={handleAddToCart}
+                disabled={isSavingToCart}
+                className={`w-full flex items-center justify-center gap-2 py-3 rounded text-sm font-bold uppercase tracking-wider transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${addedToCart
+                  ? "bg-green-600 text-white"
+                  : "bg-[var(--electric-blue)] hover:bg-[var(--deep-navy)] text-white"
+                  }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  {addedToCart ? "check_circle" : isSavingToCart ? "hourglass_top" : "shopping_cart"}
+                </span>
+                {addedToCart
+                  ? "Đã thêm vào giỏ!"
+                  : isSavingToCart
+                    ? "Đang lưu..."
+                    : "Thêm vào giỏ"}
+              </button>
+              <button
+                onClick={handleCheckout}
+                disabled={isSavingToCart}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded text-sm font-bold uppercase tracking-wider border border-[var(--deep-navy)] text-[var(--deep-navy)] hover:bg-[var(--deep-navy)] hover:text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  credit_card
+                </span>
+                Thanh toán
+              </button>
+            </div>
           </div>
         </aside>
 
-        <div className="flex-1 flex flex-col bg-[var(--surface-container-low)] min-w-0">
-          <div className="bg-white border-b border-[var(--outline-variant)] px-4 py-4 flex items-center justify-center gap-3 flex-shrink-0">
-            {centerActions.map((a) => (
-              <button
-                key={a.label}
-                onClick={() => {
-                  if (a.label === "Reset") {
-                    setIsDefaultMockup(true);
-                    setSelectedColor("#1a1a1a");
-                    setLayers([]);
-                    setSelectedLayerId(null);
-                  } else if (a.label === "Phóng To") {
-                    setIsZoomed(!isZoomed);
-                  }
-                }}
-                className="flex flex-col items-center gap-1.5 px-8 py-3 border border-[var(--outline-variant)] rounded bg-white hover:border-[var(--deep-navy)] hover:text-[var(--deep-navy)] hover:bg-[var(--surface-container-low)] transition-all group min-w-[88px]"
-              >
-                <span className="material-symbols-outlined text-[32px] text-[var(--on-surface-variant)] group-hover:text-[var(--deep-navy)] transition-colors">
-                  {a.label === "Phóng To" && isZoomed ? "zoom_out" : a.icon}
-                </span>
-                <span className="text-sm font-medium text-[var(--on-surface-variant)] group-hover:text-[var(--deep-navy)] transition-colors">
-                  {a.label === "Phóng To" && isZoomed ? "Thu Nhỏ" : a.label}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center py-8 px-6 overflow-hidden">
+        {/* Center Canvas Area */}
+        <div className="flex-1 flex flex-col bg-[var(--surface-container-low)] min-w-0 relative">
+          <div className="flex-1 flex flex-col items-center justify-center py-6 px-6 overflow-hidden">
             <div
               ref={previewRef}
               onClick={(e) => {
@@ -1135,137 +1173,227 @@ export function DesignStudioPage() {
             </div>
           </div>
 
-          <div className="md:hidden px-4 pb-4 bg-white border-t border-[var(--outline-variant)] pt-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] mb-3">
-              Chọn Màu Áo
-            </p>
-            <PhotoshopColorPicker
-              color={selectedColor}
-              onChange={(hex) => {
-                setSelectedColor(hex);
-                setIsDefaultMockup(false);
-              }}
-            />
+          {/* 4 Control buttons pushed to the bottom of the canvas view */}
+          <div className="bg-white border-t border-[var(--outline-variant)] px-4 py-3 flex items-center justify-center gap-3 flex-shrink-0">
+            {centerActions.map((a) => (
+              <button
+                key={a.label}
+                onClick={() => {
+                  if (a.label === "Reset") {
+                    setIsDefaultMockup(true);
+                    setSelectedColor("#1a1a1a");
+                    setLayers([]);
+                    setSelectedLayerId(null);
+                  } else if (a.label === "Phóng To") {
+                    setIsZoomed(!isZoomed);
+                  }
+                }}
+                className="flex flex-col items-center gap-1 px-6 py-2 border border-[var(--outline-variant)] rounded bg-white hover:border-[var(--deep-navy)] hover:text-[var(--deep-navy)] hover:bg-[var(--surface-container-low)] transition-all group min-w-[80px]"
+              >
+                <span className="material-symbols-outlined text-[24px] text-[var(--on-surface-variant)] group-hover:text-[var(--deep-navy)] transition-colors">
+                  {a.label === "Phóng To" && isZoomed ? "zoom_out" : a.icon}
+                </span>
+                <span className="text-xs font-medium text-[var(--on-surface-variant)] group-hover:text-[var(--deep-navy)] transition-colors">
+                  {a.label === "Phóng To" && isZoomed ? "Thu Nhỏ" : a.label}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
-        <aside className="w-72 flex-shrink-0 bg-white border-l border-[var(--outline-variant)] overflow-y-auto flex flex-col">
-          <div className="p-4 border-b border-[var(--outline-variant)]">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-['Montserrat'] text-sm font-semibold text-[var(--deep-navy)]">
-                Thuộc tính áo
-              </h3>
-              <span className="material-symbols-outlined text-[var(--on-surface-variant)] text-[20px]">
+        {/* Right Sidebar: Color Picker, Tools & Options */}
+        <aside className="hidden md:flex flex-col w-64 flex-shrink-0 bg-white border-l border-[var(--outline-variant)] relative overflow-visible">
+          <div className="p-3 border-b border-[var(--outline-variant)]">
+            <button
+              onClick={() => setIsColorPickerOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between text-left group mb-1"
+            >
+              <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
+                Chọn Màu Áo
+              </p>
+              <span className="material-symbols-outlined text-[var(--on-surface-variant)] text-[18px] transition-transform duration-200 group-hover:text-[var(--deep-navy)]" style={{ transform: isColorPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
                 expand_more
               </span>
-            </div>
-            <div className="space-y-1.5 text-sm">
-              <p>
-                <span className="font-medium text-[var(--on-surface)]">Tên sản phẩm: </span>
-                <span className="text-[var(--on-surface-variant)]">{displayedStyle.name}</span>
-              </p>
-              <p>
-                <span className="font-medium text-[var(--on-surface)]">Loại vải: </span>
-                <span className="text-[var(--on-surface-variant)]">95% cotton, 5% spandex</span>
-              </p>
-              <p>
-                <span className="font-medium text-[var(--on-surface)]">Loại in: </span>
-                <span className="text-[var(--on-surface-variant)]">DTF / Decal đa sắc</span>
-              </p>
-            </div>
-            <button className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--on-surface-variant)] border border-[var(--outline-variant)] rounded px-3 py-1.5 hover:border-[var(--deep-navy)] hover:text-[var(--deep-navy)] transition-colors">
-              <span className="material-symbols-outlined text-[16px]">straighten</span>
-              Thông tin size
             </button>
-          </div>
 
-          <div className="p-4 border-b border-[var(--outline-variant)]">
-            <h3 className="text-sm font-semibold text-[var(--deep-navy)] mb-3">
-              Size áo
-            </h3>
-            <div className="grid grid-cols-3 gap-x-2 gap-y-3">
-              {SIZES.map((size) => (
-                <div key={size} className="flex flex-col items-center gap-1">
-                  <label className="text-xs font-semibold text-[var(--on-surface-variant)] text-center w-full">
-                    {size}
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={quantities[size]}
-                    onChange={(e) => updateQty(size, parseInt(e.target.value) || 0)}
-                    className="w-full text-center text-sm border border-[var(--outline-variant)] rounded py-1.5 focus:border-[var(--deep-navy)] focus:outline-none transition-colors [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
-                  />
-                </div>
-              ))}
-            </div>
-            {totalQty > 0 && (
-              <div className="mt-3 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[var(--electric-blue)] text-[16px]">
-                  info
-                </span>
-                <p className="text-xs text-[var(--electric-blue)] font-medium">
-                  Tổng: {totalQty} sản phẩm
-                </p>
+            {isColorPickerOpen && (
+              <div className="mt-3">
+                <PhotoshopColorPicker
+                  color={selectedColor}
+                  onChange={(hex) => {
+                    setSelectedColor(hex);
+                    setIsDefaultMockup(false);
+                  }}
+                />
               </div>
             )}
           </div>
 
-          <div className="p-4 flex-1 flex flex-col justify-between">
-            <div>
-              <h3 className="font-['Montserrat'] text-base font-semibold text-[var(--deep-navy)] mb-3">
-                Tổng cộng:
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between text-[var(--on-surface-variant)]">
-                  <span>Tiền áo</span>
-                  <span>{shirtTotal.toLocaleString("vi-VN")}đ</span>
-                </div>
-                <div className="flex justify-between text-[var(--on-surface-variant)]">
-                  <span>Tiền in</span>
-                  <span>0đ</span>
-                </div>
-                <div className="flex justify-between text-[var(--on-surface-variant)]">
-                  <span>Tiền ảnh</span>
-                  <span>0đ</span>
-                </div>
-                <div className="flex justify-between items-baseline pt-2 border-t border-[var(--outline-variant)]">
-                  <span className="text-sm text-[var(--on-surface-variant)]">Tổng cộng:</span>
-                  <span className="font-['Montserrat'] text-2xl font-bold text-[var(--deep-navy)]">
-                    {grandTotal.toLocaleString("vi-VN")}đ
+          <div className="p-2 border-b border-[var(--outline-variant)]">
+            {tools.map((tool) => (
+              <div key={tool.label} className="relative">
+                <button
+                  onClick={() => {
+                    if (tool.label === "Upload ảnh") {
+                      fileInputRef.current?.click();
+                    } else {
+                      setActiveTool(activeTool === tool.label ? null : tool.label);
+                    }
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-colors ${activeTool === tool.label
+                    ? "bg-[var(--primary-fixed)] text-[var(--deep-navy)] font-medium"
+                    : "text-[var(--on-surface)] hover:bg-[var(--surface-container-low)] hover:text-[var(--deep-navy)]"
+                    }`}
+                >
+                  <span className="material-symbols-outlined text-[20px] text-[var(--deep-navy)]">
+                    {tool.icon}
                   </span>
-                </div>
-                <p className="text-xs text-[var(--cool-silver)] italic">
-                  Giá đã bao gồm 8% VAT
-                </p>
-              </div>
-            </div>
+                  {tool.label}
+                </button>
 
-            <div className="mt-5 space-y-2">
+                {tool.icon === "style" && activeTool === tool.label && (
+                  <div
+                    className="absolute right-full top-0 mr-2 w-72 bg-white border border-[var(--outline-variant)] rounded-xl shadow-xl p-4 z-50 space-y-3"
+                    onMouseLeave={() => setHoveredStyleId(null)}
+                  >
+                    <div className="flex justify-between items-center pb-2 border-b border-[var(--outline-variant)]">
+                      <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
+                        Chọn phối áo
+                      </p>
+                      <button
+                        onClick={() => setActiveTool(null)}
+                        className="text-[var(--on-surface-variant)] hover:text-red-500 transition-colors flex items-center justify-center"
+                      >
+                        <span className="material-symbols-outlined text-base">close</span>
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      {SHIRT_STYLES.map((style) => (
+                        <button
+                          key={style.id}
+                          onClick={() => setSelectedStyleId(style.id)}
+                          onMouseEnter={() => setHoveredStyleId(style.id)}
+                          className={`w-full text-left p-3 rounded-lg border-2 transition-all flex flex-col gap-1 ${selectedStyleId === style.id
+                            ? "border-[var(--electric-blue)] bg-blue-50/50"
+                            : "border-[var(--outline-variant)] hover:border-[var(--deep-navy)] bg-white"
+                            }`}
+                        >
+                          <span className="text-sm font-bold text-[var(--deep-navy)]">
+                            {style.name}
+                          </span>
+                          <span className="text-xs text-[var(--on-surface-variant)]">
+                            {style.desc}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {activeTool === "Thêm chữ" && (
+            <div className="p-4 border-b border-[var(--outline-variant)] space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
+                Thêm chữ lên áo
+              </p>
+              <textarea
+                value={textDraft}
+                onChange={(e) => setTextDraft(e.target.value)}
+                onKeyDown={handleTextDraftKeyDown}
+                placeholder="Nhập nội dung chữ... (Ctrl+Enter để thêm)"
+                rows={3}
+                className="w-full text-sm border border-[var(--outline-variant)] rounded p-2 focus:border-[var(--deep-navy)] focus:outline-none resize-none"
+              />
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-[var(--on-surface-variant)] font-medium">
+                  <span>Cỡ chữ</span>
+                  <span>{textDraftSize}</span>
+                </div>
+                <input
+                  type="range"
+                  min={4}
+                  max={20}
+                  value={textDraftSize}
+                  onChange={(e) => setTextDraftSize(Number(e.target.value))}
+                  className="w-full accent-[var(--deep-navy)] cursor-pointer"
+                />
+              </div>
               <button
-                onClick={handleAddToCart}
-                disabled={isSavingToCart}
-                className={`w-full flex items-center justify-center gap-2 py-3 rounded text-sm font-bold uppercase tracking-wider transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${addedToCart
-                  ? "bg-green-600 text-white"
-                  : "bg-[var(--electric-blue)] hover:bg-[var(--deep-navy)] text-white"
-                  }`}
+                onClick={handleAddText}
+                disabled={!textDraft.trim()}
+                className="w-full py-2 bg-[var(--deep-navy)] text-white text-xs font-bold uppercase tracking-wider rounded hover:bg-[var(--electric-blue)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span className="material-symbols-outlined text-[20px]">
-                  {addedToCart ? "check_circle" : isSavingToCart ? "hourglass_top" : "shopping_cart"}
-                </span>
-                {addedToCart
-                  ? "Đã thêm vào giỏ!"
-                  : isSavingToCart
-                    ? "Đang lưu..."
-                    : "Thêm vào giỏ"}
-              </button>
-              <button className="w-full flex items-center justify-center gap-2 py-3 rounded text-sm font-bold uppercase tracking-wider border border-[var(--deep-navy)] text-[var(--deep-navy)] hover:bg-[var(--deep-navy)] hover:text-white transition-all">
-                <span className="material-symbols-outlined text-[20px]">
-                  request_quote
-                </span>
-                Nhận báo giá
+                Thêm vào áo
               </button>
             </div>
+          )}
+
+          {selectedLayer && (
+            <div className="p-4 border-b border-[var(--outline-variant)] space-y-3 bg-gray-50/80">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)]">
+                  Chỉnh sửa layer
+                </p>
+                <button
+                  onClick={() => setSelectedLayerId(null)}
+                  className="text-xs text-gray-500 hover:text-black"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+
+              {selectedLayer.type === "text" && (
+                <div className="space-y-2">
+                  <label className="text-xs text-[var(--on-surface-variant)] font-medium block">
+                    Nội dung:
+                  </label>
+                  <textarea
+                    value={(selectedLayer as TextLayer).content}
+                    onChange={(e) =>
+                      updateLayer(selectedLayer.id, { content: e.target.value })
+                    }
+                    rows={2}
+                    className="w-full text-sm border border-[var(--outline-variant)] rounded p-2 focus:border-[var(--deep-navy)] focus:outline-none resize-none bg-white"
+                  />
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-[var(--on-surface-variant)] font-medium">
+                      <span>Cỡ chữ</span>
+                      <span>{Math.round((selectedLayer as TextLayer).fontSizePct)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={4}
+                      max={30}
+                      value={(selectedLayer as TextLayer).fontSizePct}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          fontSizePct: Number(e.target.value),
+                        })
+                      }
+                      className="w-full accent-[var(--deep-navy)] cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => removeLayer(selectedLayer.id)}
+                className="w-full py-2 rounded text-sm font-semibold border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
+              >
+                {selectedLayer.type === "text" ? "Xoá chữ này" : "Xoá ảnh này"}
+              </button>
+            </div>
+          )}
+
+          <div className="p-4">
+            <button className="w-full flex items-center justify-between px-3 py-2.5 border border-[var(--outline-variant)] rounded text-sm text-[var(--on-surface)] hover:border-[var(--deep-navy)] transition-colors">
+              <span>Họa tiết</span>
+              <span className="material-symbols-outlined text-[20px] text-[var(--on-surface-variant)]">
+                expand_more
+              </span>
+            </button>
           </div>
         </aside>
       </div>

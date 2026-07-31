@@ -35,7 +35,9 @@ export interface CartItem {
 interface CartContextType {
   items: CartItem[];
   addItem: (item: Omit<CartItem, "id" | "createdAt">) => void;
+  updateItem: (id: string, item: Omit<CartItem, "id" | "createdAt">) => void;
   removeItem: (id: string) => void;
+  updateSizes: (id: string, sizes: { size: string; quantity: number }[]) => void;
   clearCart: () => void;
   totalItems: number;
   totalPrice: number;
@@ -88,8 +90,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => [...prev, newItem]);
   };
 
+  const updateItem = (id: string, updated: Omit<CartItem, "id" | "createdAt">) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...updated,
+            }
+          : item
+      )
+    );
+  };
+
   const removeItem = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const updateSizes = (id: string, newSizes: { size: string; quantity: number }[]) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const BASE_PRICE = 152000;
+        const activeSizes = newSizes.filter((s) => s.quantity > 0);
+        const totalQty = activeSizes.reduce((sum, s) => sum + s.quantity, 0);
+        const totalPrice = BASE_PRICE * (totalQty || 1);
+        return {
+          ...item,
+          sizes: activeSizes.length > 0 ? activeSizes : item.sizes,
+          totalPrice,
+        };
+      })
+    );
   };
 
   const clearCart = () => {
@@ -105,7 +137,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ items, addItem, removeItem, clearCart, totalItems, totalPrice }}
+      value={{ items, addItem, updateItem, removeItem, updateSizes, clearCart, totalItems, totalPrice }}
     >
       {children}
     </CartContext.Provider>

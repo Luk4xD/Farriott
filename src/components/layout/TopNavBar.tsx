@@ -17,7 +17,7 @@ export function TopNavBar() {
 
   return (
     <>
-      <header className="fixed top-0 w-full z-50 bg-[var(--surface)] border-b border-[var(--outline-variant)]">
+      <header className="relative w-full z-50 bg-[var(--surface)] border-b border-[var(--outline-variant)]">
         <div className="max-w-[1280px] mx-auto px-4 md:px-16 flex justify-between items-center h-20">
           <Link
             to="/"

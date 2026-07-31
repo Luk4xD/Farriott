@@ -111,12 +111,16 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
+const ALL_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "XXXXL", "XXXXXL"];
+
 export function CartPage() {
-  const { items, removeItem, clearCart, totalItems, totalPrice } = useCart();
+  const { items, removeItem, updateSizes, clearCart, totalItems, totalPrice } = useCart();
+  const [editingItem, setEditingItem] = useState<import("@/context/CartContext").CartItem | null>(null);
+  const [editQuantities, setEditQuantities] = useState<Record<string, number>>({});
 
   if (items.length === 0) {
     return (
-      <main className="pt-20 min-h-screen bg-[var(--surface)]">
+      <main className="min-h-screen bg-[var(--surface)]">
         <section className="py-[120px]">
           <div className="max-w-[1280px] mx-auto px-4 md:px-16 text-center">
             <span className="material-symbols-outlined text-[80px] text-[var(--outline-variant)] mb-6 block">
@@ -142,7 +146,7 @@ export function CartPage() {
   }
 
   return (
-    <main className="pt-20 min-h-screen bg-[var(--surface)]">
+    <main className="min-h-screen bg-[var(--surface)]">
       <section className="py-12">
         <div className="max-w-[1280px] mx-auto px-4 md:px-16">
           <div className="mb-6">
@@ -207,27 +211,37 @@ export function CartPage() {
                         </button>
                       </div>
 
-                      {/* Size breakdown */}
-                      <div className="mt-4">
-                        <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] mb-2">
-                          Phân loại size
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {item.sizes.map((s) => (
-                            <div
-                              key={s.size}
-                              className="bg-[var(--surface-container-low)] border border-[var(--outline-variant)] rounded px-3 py-1.5 text-sm"
-                            >
-                              <span className="font-medium text-[var(--deep-navy)]">
-                                {s.size}
-                              </span>
-                              <span className="text-[var(--on-surface-variant)]">
-                                {" "}
-                                x {s.quantity}
-                              </span>
-                            </div>
-                          ))}
+                      {/* Size breakdown & Action */}
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] mb-2">
+                            Phân loại size
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {item.sizes.map((s) => (
+                              <div
+                                key={s.size}
+                                className="bg-[var(--surface-container-low)] border border-[var(--outline-variant)] rounded px-3 py-1.5 text-sm"
+                              >
+                                <span className="font-medium text-[var(--deep-navy)]">
+                                  {s.size}
+                                </span>
+                                <span className="text-[var(--on-surface-variant)]">
+                                  {" "}
+                                  x {s.quantity}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
+
+                        <Link
+                          to={`/design?editCartId=${item.id}`}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--deep-navy)] border border-[var(--outline-variant)] hover:border-[var(--deep-navy)] rounded px-3 py-1.5 hover:bg-[var(--surface-container-low)] transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">edit</span>
+                          Chỉnh sửa
+                        </Link>
                       </div>
 
                       {/* Item total */}

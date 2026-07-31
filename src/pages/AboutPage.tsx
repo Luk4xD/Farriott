@@ -48,7 +48,7 @@ const coreValues = [
 
 export function AboutPage() {
   return (
-    <main className="pt-20 pb-24 md:pb-0">
+    <main className="pb-24 md:pb-0">
       <section className="max-w-[1280px] mx-auto px-4 md:px-16 py-12 md:py-[120px]">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
           <div>

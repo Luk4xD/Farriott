@@ -86,7 +86,7 @@ const commitments = [
 
 export function SolutionsPage() {
   return (
-    <main className="pt-20">
+    <main>
       <section className="relative pt-[120px] pb-20 bg-[var(--surface)]">
         <div className="max-w-[1280px] mx-auto px-4 md:px-16 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
           <div className="md:col-span-6 z-10">
