@@ -52,7 +52,7 @@ export function AboutPage() {
       <section className="max-w-[1280px] mx-auto px-4 md:px-16 py-12 md:py-[120px]">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
           <div>
-            <h1 className="font-['Montserrat'] text-4xl md:text-5xl font-bold text-[var(--deep-navy)] mb-6">
+            <h1 className="font-['Montserrat'] text-4xl md:text-5xl font-bold text-[var(--deep-navy)] leading-tight mb-6">
               Hành Trình Kiến Tạo Chuẩn Mực
             </h1>
             <p className="text-lg text-[var(--on-surface-variant)]">

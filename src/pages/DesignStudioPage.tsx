@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, memo } from "react";
+import { useState, useRef, useEffect, useMemo, memo, useCallback } from "react";
 import { Rnd } from "react-rnd";
 import { useCart } from "@/context/CartContext";
 
@@ -18,6 +18,311 @@ const shirtColors = [
   { name: "Hồng nhạt", hex: "#f9a8d4" },
   { name: "Vàng", hex: "#ca8a04" },
 ];
+
+// ─── Photoshop-style Color Picker ───────────────────────────────────────────
+
+function hsvToRgb(h: number, s: number, v: number) {
+  const f = (n: number) => {
+    const k = (n + h / 60) % 6;
+    return v - v * s * Math.max(0, Math.min(k, 4 - k, 1));
+  };
+  return { r: Math.round(f(5) * 255), g: Math.round(f(3) * 255), b: Math.round(f(1) * 255) };
+}
+
+function rgbToHex(r: number, g: number, b: number) {
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToRgb(hex: string) {
+  const clean = hex.replace('#', '').slice(0, 6);
+  if (clean.length < 6) return null;
+  const num = parseInt(clean, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+function rgbToHsv(r: number, g: number, b: number) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  const v = max;
+  const s = max === 0 ? 0 : d / max;
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = h * 60;
+    if (h < 0) h += 360;
+  }
+  return { h, s, v };
+}
+
+const PhotoshopColorPicker = memo(function PhotoshopColorPicker({
+  color,
+  onChange,
+}: {
+  color: string;
+  onChange: (hex: string) => void;
+}) {
+  // Parse initial color to HSV
+  const initHsv = useMemo(() => {
+    const rgb = hexToRgb(color);
+    if (!rgb) return { h: 0, s: 1, v: 1 };
+    return rgbToHsv(rgb.r, rgb.g, rgb.b);
+  }, []);
+
+  const [hue, setHue] = useState(initHsv.h);          // 0-360
+  const [sat, setSat] = useState(initHsv.s);           // 0-1
+  const [val, setVal] = useState(initHsv.v);           // 0-1  (brightness)
+  const [opacity, setOpacity] = useState(1);           // 0-1
+  const [hexInput, setHexInput] = useState(color.replace('#', '').slice(0, 6));
+
+  const gradRef = useRef<HTMLDivElement>(null);
+  const hueRef = useRef<HTMLDivElement>(null);
+  const opRef = useRef<HTMLDivElement>(null);
+
+  // Compute current hex from hsv + opacity
+  const currentRgb = useMemo(() => hsvToRgb(hue, sat, val), [hue, sat, val]);
+  const currentHex = useMemo(() => rgbToHex(currentRgb.r, currentRgb.g, currentRgb.b), [currentRgb]);
+
+  // Hue-only color for gradient backgrounds
+  const hueHex = useMemo(() => {
+    const { r, g, b } = hsvToRgb(hue, 1, 1);
+    return rgbToHex(r, g, b);
+  }, [hue]);
+
+  // Sync hex input when picker moves
+  useEffect(() => { setHexInput(currentHex.slice(1)); }, [currentHex]);
+
+  // Notify parent
+  useEffect(() => { onChange(currentHex); }, [currentHex]);
+
+  // ── Gradient square drag ──
+  const isDraggingGrad = useRef(false);
+  const updateGrad = useCallback((clientX: number, clientY: number) => {
+    const el = gradRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const s = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const v = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
+    setSat(s);
+    setVal(v);
+  }, []);
+
+  const onGradMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingGrad.current = true;
+    updateGrad(e.clientX, e.clientY);
+    const onMove = (ev: MouseEvent) => { if (isDraggingGrad.current) updateGrad(ev.clientX, ev.clientY); };
+    const onUp = () => { isDraggingGrad.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  // ── Hue slider drag ──
+  const isDraggingHue = useRef(false);
+  const updateHue = useCallback((clientX: number) => {
+    const el = hueRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const h = Math.max(0, Math.min(360, ((clientX - rect.left) / rect.width) * 360));
+    setHue(h);
+  }, []);
+
+  const onHueMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingHue.current = true;
+    updateHue(e.clientX);
+    const onMove = (ev: MouseEvent) => { if (isDraggingHue.current) updateHue(ev.clientX); };
+    const onUp = () => { isDraggingHue.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  // ── Opacity slider drag ──
+  const isDraggingOp = useRef(false);
+  const updateOp = useCallback((clientX: number) => {
+    const el = opRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const o = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    setOpacity(o);
+  }, []);
+
+  const onOpMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingOp.current = true;
+    updateOp(e.clientX);
+    const onMove = (ev: MouseEvent) => { if (isDraggingOp.current) updateOp(ev.clientX); };
+    const onUp = () => { isDraggingOp.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  // ── Hex input ──
+  const handleHexInput = (v: string) => {
+    setHexInput(v.replace(/[^0-9a-fA-F]/g, '').slice(0, 6));
+  };
+  const commitHex = () => {
+    const rgb = hexToRgb('#' + hexInput);
+    if (!rgb) return;
+    const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+    setHue(hsv.h); setSat(hsv.s); setVal(hsv.v);
+  };
+
+  // Quick preset swatches
+  const presets = [
+    '#000000','#ffffff','#f97316','#dc2626','#1A2A6C','#9ca3af',
+    '#7c3aed','#16a34a','#ec4899','#ca8a04','#c96a4a','#0ea5e9',
+  ];
+
+  return (
+    <div className="select-none">
+      {/* Gradient Square */}
+      <div
+        ref={gradRef}
+        onMouseDown={onGradMouseDown}
+        className="relative w-full rounded-lg overflow-hidden cursor-crosshair mb-2"
+        style={{ height: 140, background: hueHex }}
+      >
+        {/* white fade left→right */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #fff, transparent)' }} />
+        {/* black fade top→bottom */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent, #000)' }} />
+        {/* crosshair cursor */}
+        <div
+          className="absolute w-4 h-4 rounded-full border-2 border-white shadow-md pointer-events-none"
+          style={{
+            left: `calc(${sat * 100}% - 8px)`,
+            top: `calc(${(1 - val) * 100}% - 8px)`,
+            backgroundColor: currentHex,
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.4)',
+          }}
+        />
+      </div>
+
+      {/* Hue Slider */}
+      <div className="mb-2">
+        <p className="text-[10px] text-gray-400 mb-1 font-medium uppercase tracking-wider">Màu sắc (Hue)</p>
+        <div
+          ref={hueRef}
+          onMouseDown={onHueMouseDown}
+          className="relative h-4 rounded-full cursor-pointer"
+          style={{ background: 'linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)' }}
+        >
+          <div
+            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white pointer-events-none"
+            style={{
+              left: `calc(${(hue / 360) * 100}% - 8px)`,
+              backgroundColor: hueHex,
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.3)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Opacity Slider */}
+      <div className="mb-3">
+        <p className="text-[10px] text-gray-400 mb-1 font-medium uppercase tracking-wider">Độ mờ (Opacity)</p>
+        <div
+          ref={opRef}
+          onMouseDown={onOpMouseDown}
+          className="relative h-4 rounded-full cursor-pointer overflow-hidden"
+          style={{
+            background: `linear-gradient(to right, transparent, ${currentHex}), repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 0 0 / 10px 10px`,
+          }}
+        >
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{ background: `linear-gradient(to right, transparent, ${currentHex})` }}
+          />
+          <div
+            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white pointer-events-none"
+            style={{
+              left: `calc(${opacity * 100}% - 8px)`,
+              backgroundColor: `rgba(${currentRgb.r},${currentRgb.g},${currentRgb.b},${opacity})`,
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.3)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Preview + Hex Input */}
+      <div className="flex items-center gap-2 mb-3">
+        <div
+          className="w-10 h-10 rounded-lg flex-shrink-0 border border-gray-200"
+          style={{
+            backgroundColor: `rgba(${currentRgb.r},${currentRgb.g},${currentRgb.b},${opacity})`,
+            boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
+          }}
+        />
+        <div className="flex-1">
+          <p className="text-[10px] text-gray-400 mb-0.5 font-medium uppercase tracking-wider">HEX</p>
+          <div className="flex items-center border border-gray-200 rounded px-2 py-1 bg-gray-50">
+            <span className="text-gray-400 text-xs mr-1">#</span>
+            <input
+              type="text"
+              value={hexInput}
+              onChange={e => handleHexInput(e.target.value)}
+              onBlur={commitHex}
+              onKeyDown={e => e.key === 'Enter' && commitHex()}
+              className="flex-1 bg-transparent text-xs font-mono text-gray-800 outline-none w-0 min-w-0"
+              placeholder="000000"
+              maxLength={6}
+            />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="text-[10px] text-gray-400 mb-0.5 font-medium uppercase tracking-wider">Opacity</p>
+          <div className="flex items-center border border-gray-200 rounded px-2 py-1 bg-gray-50">
+            <input
+              type="number"
+              value={Math.round(opacity * 100)}
+              min={0} max={100}
+              onChange={e => setOpacity(Math.max(0, Math.min(1, Number(e.target.value) / 100)))}
+              className="flex-1 bg-transparent text-xs font-mono text-gray-800 outline-none w-0 min-w-0"
+            />
+            <span className="text-gray-400 text-xs ml-0.5">%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* RGB readout */}
+      <div className="flex gap-1 mb-3">
+        {(['R','G','B'] as const).map((ch, i) => (
+          <div key={ch} className="flex-1 text-center">
+            <div className="border border-gray-200 rounded px-1 py-1 bg-gray-50">
+              <p className="text-[9px] text-gray-400 font-medium">{ch}</p>
+              <p className="text-xs font-mono text-gray-700">{[currentRgb.r,currentRgb.g,currentRgb.b][i]}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Preset swatches */}
+      <div className="flex flex-wrap gap-1.5">
+        {presets.map(p => (
+          <button
+            key={p}
+            title={p}
+            onClick={() => {
+              const rgb = hexToRgb(p)!;
+              const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+              setHue(hsv.h); setSat(hsv.s); setVal(hsv.v);
+            }}
+            className="w-6 h-6 rounded-full transition-transform hover:scale-110"
+            style={{
+              backgroundColor: p,
+              border: currentHex.toLowerCase() === p.toLowerCase() ? '2px solid #c96a4a' : '2px solid #e5e7eb',
+              boxShadow: currentHex.toLowerCase() === p.toLowerCase() ? '0 0 0 1px white, 0 0 0 3px #c96a4a' : 'none',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+});
+
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "XXXXL", "XXXXXL"];
 
@@ -493,37 +798,17 @@ export function DesignStudioPage() {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="hidden md:flex flex-col w-60 flex-shrink-0 bg-white border-r border-[var(--outline-variant)] relative overflow-visible">
-          <div className="p-4 border-b border-[var(--outline-variant)]">
+          <div className="p-3 border-b border-[var(--outline-variant)]">
             <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] text-center mb-3">
-              Chọn Màu
+              Chọn Màu Áo
             </p>
-            <div className="grid grid-cols-6 gap-2">
-              {shirtColors.map((c) => (
-                <button
-                  key={c.hex}
-                  title={c.name}
-                  onClick={() => {
-                    setSelectedColor(c.hex);
-                    setIsDefaultMockup(false);
-                  }}
-                  className="w-7 h-7 rounded-full transition-all duration-200"
-                  style={{
-                    backgroundColor: c.hex,
-                    border:
-                      selectedColor === c.hex
-                        ? "3px solid var(--electric-blue)"
-                        : isLightColor(c.hex)
-                          ? "2px solid #d1d5db"
-                          : "2px solid transparent",
-                    transform: selectedColor === c.hex ? "scale(1.18)" : "scale(1)",
-                    boxShadow:
-                      selectedColor === c.hex
-                        ? "0 0 0 2px white, 0 0 0 4px var(--electric-blue)"
-                        : "none",
-                  }}
-                />
-              ))}
-            </div>
+            <PhotoshopColorPicker
+              color={selectedColor}
+              onChange={(hex) => {
+                setSelectedColor(hex);
+                setIsDefaultMockup(false);
+              }}
+            />
           </div>
 
           <div className="p-2 border-b border-[var(--outline-variant)]">
@@ -851,32 +1136,16 @@ export function DesignStudioPage() {
           </div>
 
           <div className="md:hidden px-4 pb-4 bg-white border-t border-[var(--outline-variant)] pt-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] mb-2">
-              Chọn Màu
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--deep-navy)] mb-3">
+              Chọn Màu Áo
             </p>
-            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
-              {shirtColors.map((c) => (
-                <button
-                  key={c.hex}
-                  title={c.name}
-                  onClick={() => setSelectedColor(c.hex)}
-                  className="flex-shrink-0 w-7 h-7 rounded-full transition-all"
-                  style={{
-                    backgroundColor: c.hex,
-                    border:
-                      selectedColor === c.hex
-                        ? "3px solid var(--electric-blue)"
-                        : isLightColor(c.hex)
-                          ? "2px solid #d1d5db"
-                          : "2px solid transparent",
-                    boxShadow:
-                      selectedColor === c.hex
-                        ? "0 0 0 2px white, 0 0 0 4px var(--electric-blue)"
-                        : "none",
-                  }}
-                />
-              ))}
-            </div>
+            <PhotoshopColorPicker
+              color={selectedColor}
+              onChange={(hex) => {
+                setSelectedColor(hex);
+                setIsDefaultMockup(false);
+              }}
+            />
           </div>
         </div>
 

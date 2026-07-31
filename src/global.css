@@ -32,8 +32,8 @@
   --radius: 0.125rem;
 
   /* Farriott Design System - Colors */
-  --deep-navy: #1A2A6C;
-  --electric-blue: #00B2EE;
+  --deep-navy: #c96a4a;
+  --electric-blue: #c96a4a;
   --cool-silver: #8E9EAB;
   --accent-gold: #FCD68E;
   --slate-dark: #333F48;
@@ -49,14 +49,14 @@
   --surface-container-highest: #e1e3e4;
 
   /* Primary colors */
-  --primary: #001255;
+  --primary: #a0442e;
   --on-primary: #ffffff;
-  --primary-container: #1a2a6c;
-  --on-primary-container: #8594dc;
-  --primary-fixed: #dde1ff;
-  --primary-fixed-dim: #b9c3ff;
-  --on-primary-fixed: #001356;
-  --on-primary-fixed-variant: #334284;
+  --primary-container: #c96a4a;
+  --on-primary-container: #f5c4b5;
+  --primary-fixed: #fde8e1;
+  --primary-fixed-dim: #f5c4b5;
+  --on-primary-fixed: #3d1208;
+  --on-primary-fixed-variant: #7a2f1c;
 
   /* Secondary colors */
   --secondary: #51606c;

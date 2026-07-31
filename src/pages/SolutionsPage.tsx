@@ -93,7 +93,7 @@ export function SolutionsPage() {
             <span className="inline-block px-3 py-1 bg-[var(--primary-fixed)] text-[var(--deep-navy)] rounded text-xs font-bold uppercase tracking-wider mb-6">
               Giải Pháp Đồng Phục
             </span>
-            <h1 className="font-['Montserrat'] text-4xl md:text-5xl font-bold text-[var(--deep-navy)] mb-6">
+            <h1 className="font-['Montserrat'] text-4xl md:text-5xl font-bold text-[var(--deep-navy)] leading-tight mb-6">
               Kiến tạo hình ảnh chuyên nghiệp cho doanh nghiệp của bạn.
             </h1>
             <p className="text-lg text-[var(--on-surface-variant)] mb-8 max-w-lg">
