@@ -410,23 +410,14 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// Chuyển 1 URL ảnh (blob: URL tạo từ URL.createObjectURL, hoặc bất kỳ URL nào)
-// thành base64 data URL — cần thiết vì blob URL chỉ tồn tại trong phiên làm
-// việc hiện tại (mất hiệu lực sau khi tải lại trang), còn data URL là string
-// thật sự, lưu được bền vào localStorage.
-function urlToDataUrl(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    fetch(url)
-      .then((res) => res.blob())
-      .then((blob) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      })
-      .catch(reject);
-  });
+import { processAndUploadImage } from "@/lib/uploadService";
+
+// Xử lý nén ảnh (Base64) hoặc upload trực tiếp Cloudinary nếu có cấu hình
+async function urlToDataUrl(url: string): Promise<string> {
+  const result = await processAndUploadImage(url);
+  return result.url;
 }
+
 
 // --- Layer Item (ảnh hoặc chữ đặt trên áo) ---
 const LayerItem = memo(function LayerItem({
@@ -676,6 +667,46 @@ export function DesignStudioPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const [boxSize, setBoxSize] = useState({ width: 360, height: 360 });
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // Modal States theo phong cách YouTube Popup
+  const [fileErrorModal, setFileErrorModal] = useState<{
+    isOpen: boolean;
+    fileName: string;
+    fileType: string;
+  }>({
+    isOpen: false,
+    fileName: "",
+    fileType: "",
+  });
+
+  const [alertModal, setAlertModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "warning" | "error" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "warning",
+  });
+
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedEmbed, setCopiedEmbed] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setFileErrorModal((prev) => ({ ...prev, isOpen: false }));
+        setAlertModal((prev) => ({ ...prev, isOpen: false }));
+        setIsShareModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const el = previewRef.current;
@@ -697,24 +728,92 @@ export function DesignStudioPage() {
     return () => observer.disconnect();
   }, [isInteractingLayer]);
 
+  // Danh sách MIME types và đuôi file hình ảnh hợp lệ
+  const ALLOWED_IMAGE_TYPES = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/svg+xml",
+    "image/gif",
+    "image/bmp",
+  ];
+  const ALLOWED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif", ".bmp"];
+
+  // Kiểm tra file và chèn layer ảnh lên áo
+  const validateAndAddImage = (file: File) => {
+    const fileExt = file.name.includes(".")
+      ? file.name.substring(file.name.lastIndexOf(".")).toLowerCase()
+      : "";
+    const isImageMime = file.type
+      ? ALLOWED_IMAGE_TYPES.includes(file.type.toLowerCase()) || file.type.startsWith("image/")
+      : false;
+    const isImageExt = ALLOWED_IMAGE_EXTENSIONS.includes(fileExt);
+
+    if (!isImageMime && !isImageExt) {
+      setFileErrorModal({
+        isOpen: true,
+        fileName: file.name,
+        fileType: file.type || fileExt.toUpperCase() || "Không xác định",
+      });
+      return false;
+    }
+
+    const MAX_SIZE_MB = 25;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      setAlertModal({
+        isOpen: true,
+        title: "Dung lượng file quá lớn",
+        message: `File "${file.name}" vượt quá giới hạn ${MAX_SIZE_MB}MB.\nVui lòng chọn ảnh có dung lượng nhẹ hơn để đảm bảo tốc độ và chất lượng in.`,
+        type: "warning",
+      });
+      return false;
+    }
+
+    const url = URL.createObjectURL(file);
+    const newLayer: ImageLayer = {
+      id: uid(),
+      type: "image",
+      src: url,
+      view,
+      xPct: PRINT_AREA_BASE.left + PRINT_AREA_BASE.width / 2 - 0.15,
+      yPct: PRINT_AREA_BASE.top + PRINT_AREA_BASE.height / 2 - 0.15,
+      widthPct: 0.3,
+      heightPct: 0.3,
+    };
+    setLayers((prev) => [...prev, newLayer]);
+    setSelectedLayerId(newLayer.id);
+    return true;
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      const newLayer: ImageLayer = {
-        id: uid(),
-        type: "image",
-        src: url,
-        view,
-        xPct: PRINT_AREA_BASE.left + PRINT_AREA_BASE.width / 2 - 0.15,
-        yPct: PRINT_AREA_BASE.top + PRINT_AREA_BASE.height / 2 - 0.15,
-        widthPct: 0.3,
-        heightPct: 0.3,
-      };
-      setLayers((prev) => [...prev, newLayer]);
-      setSelectedLayerId(newLayer.id);
+      validateAndAddImage(file);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      validateAndAddImage(file);
+    }
   };
 
   const handleAddText = () => {
@@ -771,7 +870,12 @@ export function DesignStudioPage() {
     }));
 
     if (sizes.length === 0) {
-      alert("Vui lòng chọn ít nhất một size với số lượng > 0");
+      setAlertModal({
+        isOpen: true,
+        title: "Chưa chọn số lượng áo",
+        message: "Vui lòng chọn ít nhất một kích cỡ áo (size S, M, L...) với số lượng > 0 ở bảng bên trái trước khi thêm vào giỏ hàng.",
+        type: "warning",
+      });
       return;
     }
 
@@ -839,7 +943,12 @@ export function DesignStudioPage() {
       setTimeout(() => setAddedToCart(false), 2800);
     } catch (err) {
       console.error("Lỗi khi lưu thiết kế vào giỏ hàng:", err);
-      alert("Có lỗi khi lưu thiết kế (ảnh có thể quá nặng). Vui lòng thử lại.");
+      setAlertModal({
+        isOpen: true,
+        title: "Có lỗi khi lưu thiết kế",
+        message: "Hệ thống gặp sự cố trong quá trình lưu ảnh thiết kế. Vui lòng thử lại hoặc giảm bớt dung lượng ảnh.",
+        type: "error",
+      });
     } finally {
       setIsSavingToCart(false);
     }
@@ -855,7 +964,12 @@ export function DesignStudioPage() {
     }));
 
     if (sizes.length === 0) {
-      alert("Vui lòng chọn ít nhất một size với số lượng > 0");
+      setAlertModal({
+        isOpen: true,
+        title: "Chưa chọn số lượng áo",
+        message: "Vui lòng chọn ít nhất một kích cỡ áo (size S, M, L...) với số lượng > 0 ở bảng bên trái trước khi tiến hành thanh toán.",
+        type: "warning",
+      });
       return;
     }
 
@@ -904,7 +1018,12 @@ export function DesignStudioPage() {
       navigate("/checkout");
     } catch (err) {
       console.error("Lỗi khi chuyển đến trang thanh toán:", err);
-      alert("Có lỗi khi lưu thiết kế. Vui lòng thử lại.");
+      setAlertModal({
+        isOpen: true,
+        title: "Có lỗi khi chuyển thanh toán",
+        message: "Hệ thống gặp sự cố khi lưu thiết kế để thanh toán. Vui lòng thử lại.",
+        type: "error",
+      });
     } finally {
       setIsSavingToCart(false);
     }
@@ -919,7 +1038,7 @@ export function DesignStudioPage() {
         type="file"
         ref={fileInputRef}
         onChange={handleImageUpload}
-        accept="image/*"
+        accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml, .png, .jpg, .jpeg, .webp, .svg"
         className="hidden"
       />
 
@@ -1062,10 +1181,15 @@ export function DesignStudioPage() {
           <div className="flex-1 flex flex-col items-center justify-center py-6 px-6 overflow-hidden">
             <div
               ref={previewRef}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               onClick={(e) => {
                 if (e.target === e.currentTarget) setSelectedLayerId(null);
               }}
-              className={`w-full aspect-square relative flex items-center justify-center transition-all duration-300 ease-in-out ${isZoomed ? "max-w-[550px]" : "max-w-[360px]"}`}
+              className={`w-full aspect-square relative flex items-center justify-center transition-all duration-300 ease-in-out ${
+                isZoomed ? "max-w-[550px]" : "max-w-[360px]"
+              } ${isDragOver ? "ring-2 ring-[var(--electric-blue)] ring-offset-2 rounded-xl bg-blue-50/20" : ""}`}
             >
               {isDefaultMockup ? (
                 <img
@@ -1236,6 +1360,8 @@ export function DesignStudioPage() {
                   onClick={() => {
                     if (tool.label === "Upload ảnh") {
                       fileInputRef.current?.click();
+                    } else if (tool.label === "Share") {
+                      setIsShareModalOpen(true);
                     } else {
                       setActiveTool(activeTool === tool.label ? null : tool.label);
                     }
@@ -1397,6 +1523,310 @@ export function DesignStudioPage() {
           </div>
         </aside>
       </div>
+
+      {/* ============================================================ */}
+      {/* 1. Modal thông báo lỗi tệp ảnh (YouTube-style Dark Popup)     */}
+      {/* ============================================================ */}
+      {fileErrorModal.isOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setFileErrorModal((prev) => ({ ...prev, isOpen: false }))}
+        >
+          <div
+            className="bg-[#212121] text-white w-full max-w-[480px] rounded-2xl border border-[#383838] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header: Centered title with absolute close button */}
+            <div className="relative px-6 py-4 border-b border-[#383838]/80 text-center">
+              <h3 className="text-white font-semibold text-base tracking-wide">
+                Không thể chèn tệp vào áo
+              </h3>
+              <button
+                onClick={() => setFileErrorModal((prev) => ({ ...prev, isOpen: false }))}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Đóng"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Body: Centered and balanced */}
+            <div className="p-6 space-y-5">
+              {/* File Info Card: Centered layout */}
+              <div className="flex flex-col items-center text-center p-4 bg-[#2a2a2a] border border-[#3d3d3d] rounded-xl">
+                <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center mb-2.5 shadow-inner">
+                  <span className="material-symbols-outlined text-2xl">hide_image</span>
+                </div>
+                <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider block">
+                  Định dạng file không hỗ trợ
+                </span>
+                <p className="text-sm font-semibold text-white max-w-full truncate mt-1 px-2 font-mono" title={fileErrorModal.fileName}>
+                  {fileErrorModal.fileName}
+                </p>
+                <div className="mt-1.5 px-3 py-1 rounded-full bg-[#1e1e1e] border border-[#383838] text-xs text-neutral-400 inline-flex items-center gap-1.5">
+                  <span>Loại tệp:</span>
+                  <span className="text-neutral-200 font-mono font-medium">{fileErrorModal.fileType}</span>
+                </div>
+              </div>
+
+              {/* Description: Centered text */}
+              <p className="text-sm text-neutral-300 text-center leading-relaxed px-2">
+                Hệ thống Farriott chỉ hỗ trợ chèn các tệp <strong className="text-white">hình ảnh</strong> lên áo để in DTF/Decal sắc nét. Các tệp video, âm thanh hoặc tài liệu không được hỗ trợ.
+              </p>
+
+              {/* Supported Formats: Centered badges */}
+              <div className="text-center">
+                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">
+                  Định dạng ảnh được chấp nhận:
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">check</span> PNG (Khuyên dùng)
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#333333] text-neutral-200 border border-[#444444]">
+                    JPG / JPEG
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#333333] text-neutral-200 border border-[#444444]">
+                    WEBP
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#333333] text-neutral-200 border border-[#444444]">
+                    SVG (Vector)
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons: Centered */}
+              <div className="pt-3 flex items-center justify-center gap-3 border-t border-[#383838]/80 mt-2">
+                <button
+                  onClick={() => setFileErrorModal((prev) => ({ ...prev, isOpen: false }))}
+                  className="px-5 py-2.5 rounded-full text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  Đóng
+                </button>
+                <button
+                  onClick={() => {
+                    setFileErrorModal((prev) => ({ ...prev, isOpen: false }));
+                    setTimeout(() => {
+                      fileInputRef.current?.click();
+                    }, 100);
+                  }}
+                  className="px-6 py-2.5 rounded-full text-sm font-semibold bg-white text-black hover:bg-neutral-200 transition-colors flex items-center gap-2 shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                  Chọn ảnh khác
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* 2. Modal cảnh báo / thông báo chung (YouTube-style Popup)   */}
+      {/* ============================================================ */}
+      {alertModal.isOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setAlertModal((prev) => ({ ...prev, isOpen: false }))}
+        >
+          <div
+            className="bg-[#212121] text-white w-full max-w-[460px] rounded-2xl border border-[#383838] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header: Centered title */}
+            <div className="relative px-6 py-4 border-b border-[#383838]/80 text-center">
+              <h3 className="text-white font-semibold text-base tracking-wide">
+                {alertModal.title}
+              </h3>
+              <button
+                onClick={() => setAlertModal((prev) => ({ ...prev, isOpen: false }))}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Đóng"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Body: Centered layout */}
+            <div className="p-6 space-y-4 flex flex-col items-center text-center">
+              <div
+                className={`w-14 h-14 rounded-full flex items-center justify-center shadow-inner ${
+                  alertModal.type === "error"
+                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                    : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                }`}
+              >
+                <span className="material-symbols-outlined text-3xl">
+                  {alertModal.type === "error" ? "error" : "warning"}
+                </span>
+              </div>
+
+              <p className="text-sm text-neutral-200 leading-relaxed whitespace-pre-line max-w-sm">
+                {alertModal.message}
+              </p>
+
+              {/* Action Buttons: Centered */}
+              <div className="pt-3 flex items-center justify-center w-full border-t border-[#383838]/80 mt-2">
+                <button
+                  onClick={() => setAlertModal((prev) => ({ ...prev, isOpen: false }))}
+                  className="px-8 py-2.5 rounded-full text-sm font-semibold bg-white text-black hover:bg-neutral-200 transition-colors shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Đã hiểu
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* 3. Modal Chia sẻ thiết kế (YouTube-style Share Popup)       */}
+      {/* ============================================================ */}
+      {isShareModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setIsShareModalOpen(false)}
+        >
+          <div
+            className="bg-[#212121] text-white w-full max-w-[500px] rounded-2xl border border-[#383838] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header: Centered title */}
+            <div className="relative px-6 py-4 border-b border-[#383838]/80 text-center">
+              <h3 className="text-white font-semibold text-base tracking-wide">
+                Chia sẻ thiết kế
+              </h3>
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Đóng"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Body: Centered layout */}
+            <div className="p-6 space-y-5 text-center">
+              <p className="text-xs text-neutral-400">
+                Chia sẻ mẫu áo tùy chỉnh này với bạn bè, đồng nghiệp hoặc đối tác:
+              </p>
+
+              {/* Social Channels Row: Centered */}
+              <div className="flex items-center justify-center gap-3 overflow-x-auto py-2">
+                {[
+                  {
+                    name: "Nhúng",
+                    icon: "code",
+                    onClick: () => {
+                      const embedHtml = `<iframe src="${window.location.href}" width="600" height="600" frameborder="0"></iframe>`;
+                      navigator.clipboard.writeText(embedHtml);
+                      setCopiedEmbed(true);
+                      setTimeout(() => setCopiedEmbed(false), 2000);
+                    },
+                  },
+                  {
+                    name: "Facebook",
+                    icon: "public",
+                    onClick: () => {
+                      window.open(
+                        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+                          window.location.href
+                        )}`,
+                        "_blank",
+                        "width=600,height=500"
+                      );
+                    },
+                  },
+                  {
+                    name: "X",
+                    icon: "tag",
+                    onClick: () => {
+                      window.open(
+                        `https://twitter.com/intent/tweet?url=${encodeURIComponent(
+                          window.location.href
+                        )}&text=${encodeURIComponent("Xem mẫu thiết kế áo Farriott của tôi!")}`,
+                        "_blank",
+                        "width=600,height=500"
+                      );
+                    },
+                  },
+                  {
+                    name: "Zalo",
+                    icon: "chat",
+                    onClick: () => {
+                      window.open(
+                        `https://zalo.me/share?url=${encodeURIComponent(window.location.href)}`,
+                        "_blank",
+                        "width=600,height=500"
+                      );
+                    },
+                  },
+                  {
+                    name: "WhatsApp",
+                    icon: "forum",
+                    onClick: () => {
+                      window.open(
+                        `https://api.whatsapp.com/send?text=${encodeURIComponent(
+                          "Xem mẫu áo thiết kế: " + window.location.href
+                        )}`,
+                        "_blank"
+                      );
+                    },
+                  },
+                ].map((channel) => (
+                  <button
+                    key={channel.name}
+                    onClick={channel.onClick}
+                    className="flex flex-col items-center gap-1.5 group p-1 shrink-0"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-[#2e2e2e] hover:bg-[#3d3d3d] text-white flex items-center justify-center transition-transform group-hover:scale-105 border border-[#3e3e3e]">
+                      <span className="material-symbols-outlined text-[20px]">
+                        {channel.icon}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-neutral-300 group-hover:text-white transition-colors">
+                      {channel.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {copiedEmbed && (
+                <p className="text-xs text-emerald-400 font-medium text-center">
+                  Đã sao chép mã nhúng HTML iframe vào bộ nhớ tạm!
+                </p>
+              )}
+
+              {/* Copy Link Input Bar */}
+              <div className="bg-[#181818] border border-[#383838] rounded-xl p-1.5 pl-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={typeof window !== "undefined" ? window.location.href : ""}
+                  className="bg-transparent text-xs text-neutral-300 flex-1 outline-none truncate select-all font-mono"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.href);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2000);
+                  }}
+                  className={`px-4 py-2 rounded-full text-xs font-semibold transition-all shrink-0 flex items-center gap-1 ${
+                    copiedLink
+                      ? "bg-emerald-500 text-white"
+                      : "bg-white text-black hover:bg-neutral-200"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {copiedLink ? "check" : "content_copy"}
+                  </span>
+                  {copiedLink ? "Đã sao chép" : "Sao chép"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

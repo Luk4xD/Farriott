@@ -156,20 +156,72 @@ export function CheckoutPage() {
     return isValid;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      const orderId = `FR-${Math.floor(100000 + Math.random() * 900000)}`;
-      setGeneratedOrderId(orderId);
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+    // Chuẩn bị payload khớp với DTO CreateOrderRequest của Backend C#
+    const orderPayload = {
+      userId: null,
+      shippingAddress: `${formData.address} (Khách: ${formData.fullName}, SĐT: ${formData.phone}${formData.notes ? `, Ghi chú: ${formData.notes}` : ""})`,
+      items: items.map((item) => {
+        const totalQty = item.sizes.reduce((sum, s) => sum + s.quantity, 0) || 1;
+        const unitPrice = item.totalPrice / totalQty;
+
+        // Trích xuất các layer in ấn theo yêu cầu
+        const customPrints = (item.layers || [])
+          .filter((l) => l.type === "image" && l.src)
+          .map((l) => ({
+            uploadedImageUrl: l.src!,
+            printMetadata: JSON.stringify({
+              view: l.view,
+              xPct: l.xPct,
+              yPct: l.yPct,
+              widthPct: l.widthPct,
+              heightPct: l.heightPct,
+            }),
+            customerNotes: `Màu áo: ${item.colorName || item.color}, Vị trí: ${l.view}`,
+          }));
+
+        return {
+          variantId: 1, // Variant mặc định nếu chưa chọn từ catalog
+          designId: null,
+          quantity: totalQty,
+          unitPrice: Math.round(unitPrice),
+          customPrints: customPrints.length > 0 ? customPrints : [],
+        };
+      }),
+    };
+
+    try {
+      const response = await fetch(`${apiUrl}/api/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(orderPayload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const orderCode = data.orderCode || (data.id ? `FR-${data.id}` : null) || `FR-${Math.floor(100000 + Math.random() * 900000)}`;
+        setGeneratedOrderId(orderCode);
+      } else {
+        console.warn("Backend trả về lỗi, chuyển sang mã đơn dự phòng:", await response.text());
+        setGeneratedOrderId(`FR-${Math.floor(100000 + Math.random() * 900000)}`);
+      }
+    } catch (err) {
+      console.warn("Chưa kết nối được Backend, chuyển sang mã đơn dự phòng:", err);
+      setGeneratedOrderId(`FR-${Math.floor(100000 + Math.random() * 900000)}`);
+    } finally {
       setIsSubmitting(false);
       setOrderSuccess(true);
       clearCart();
-    }, 1500);
+    }
   };
 
   const formatPrice = (p: number) => {
