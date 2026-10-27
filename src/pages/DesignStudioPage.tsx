@@ -674,6 +674,7 @@ export function DesignStudioPage() {
     isOpen: boolean;
     fileName: string;
     fileType: string;
+    customMessage?: string;
   }>({
     isOpen: false,
     fileName: "",
@@ -728,33 +729,80 @@ export function DesignStudioPage() {
     return () => observer.disconnect();
   }, [isInteractingLayer]);
 
-  // Danh sách MIME types và đuôi file hình ảnh hợp lệ
+  // Danh sách MIME types và đuôi file hình ảnh tĩnh hợp lệ (loại bỏ hoàn toàn GIF và các tệp động)
   const ALLOWED_IMAGE_TYPES = [
     "image/jpeg",
     "image/jpg",
     "image/png",
     "image/webp",
     "image/svg+xml",
-    "image/gif",
     "image/bmp",
   ];
-  const ALLOWED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif", ".bmp"];
+  const ALLOWED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".svg", ".bmp"];
 
-  // Kiểm tra file và chèn layer ảnh lên áo
-  const validateAndAddImage = (file: File) => {
+  // Kiểm tra file ảnh tĩnh và chặn triệt để các định dạng động (như GIF)
+  const checkStaticImageFile = async (
+    file: File
+  ): Promise<{ isValid: boolean; displayType: string; isGif: boolean }> => {
     const fileExt = file.name.includes(".")
       ? file.name.substring(file.name.lastIndexOf(".")).toLowerCase()
       : "";
-    const isImageMime = file.type
-      ? ALLOWED_IMAGE_TYPES.includes(file.type.toLowerCase()) || file.type.startsWith("image/")
-      : false;
-    const isImageExt = ALLOWED_IMAGE_EXTENSIONS.includes(fileExt);
 
-    if (!isImageMime && !isImageExt) {
+    // 1. Kiểm tra nhanh GIF theo đuôi file hoặc MIME type
+    const isGifName = fileExt === ".gif" || file.name.toLowerCase().endsWith(".gif");
+    const isGifMime = file.type ? file.type.toLowerCase().includes("gif") : false;
+
+    if (isGifName || isGifMime) {
+      return { isValid: false, displayType: "GIF (Ảnh động)", isGif: true };
+    }
+
+    // 2. Kiểm tra phần mở rộng và MIME theo danh sách ảnh tĩnh cho phép
+    const isExtAllowed = ALLOWED_IMAGE_EXTENSIONS.includes(fileExt);
+    const isMimeAllowed = file.type
+      ? ALLOWED_IMAGE_TYPES.includes(file.type.toLowerCase())
+      : isExtAllowed;
+
+    if (!isExtAllowed && !isMimeAllowed) {
+      return {
+        isValid: false,
+        displayType: file.type || (fileExt ? fileExt.toUpperCase() : "Không xác định"),
+        isGif: false,
+      };
+    }
+
+    // 3. Kiểm tra Magic Bytes nhị phân (ngăn chặn triệt để trường hợp cố tình đổi đuôi .gif sang .png/.jpg...)
+    try {
+      const slice = file.slice(0, 12);
+      const buffer = await slice.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+
+      // GIF87a hoặc GIF89a header: 'G' 'I' 'F' (0x47, 0x49, 0x46)
+      if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+        return { isValid: false, displayType: "GIF (Ảnh động)", isGif: true };
+      }
+    } catch (err) {
+      console.warn("Không thể kiểm tra magic bytes:", err);
+    }
+
+    return {
+      isValid: true,
+      displayType: fileExt ? fileExt.replace(".", "").toUpperCase() : "Ảnh tĩnh",
+      isGif: false,
+    };
+  };
+
+  // Kiểm tra file và chèn layer ảnh lên áo
+  const validateAndAddImage = async (file: File) => {
+    const check = await checkStaticImageFile(file);
+
+    if (!check.isValid) {
       setFileErrorModal({
         isOpen: true,
         fileName: file.name,
-        fileType: file.type || fileExt.toUpperCase() || "Không xác định",
+        fileType: check.displayType,
+        customMessage: check.isGif
+          ? "Hệ thống Farriott chỉ hỗ trợ hình ảnh tĩnh để in áo. Các tệp ảnh động (như GIF) không được phép chèn lên áo."
+          : undefined,
       });
       return false;
     }
@@ -786,10 +834,36 @@ export function DesignStudioPage() {
     return true;
   };
 
+  // Hỗ trợ dán (paste) ảnh từ clipboard vào giao diện thiết kế
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) {
+            void validateAndAddImage(file);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [view]);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      validateAndAddImage(file);
+      void validateAndAddImage(file);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -812,7 +886,7 @@ export function DesignStudioPage() {
     setIsDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      validateAndAddImage(file);
+      void validateAndAddImage(file);
     }
   };
 
@@ -1038,7 +1112,7 @@ export function DesignStudioPage() {
         type="file"
         ref={fileInputRef}
         onChange={handleImageUpload}
-        accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml, .png, .jpg, .jpeg, .webp, .svg"
+        accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml, image/bmp, .png, .jpg, .jpeg, .webp, .svg, .bmp"
         className="hidden"
       />
 
@@ -1571,13 +1645,17 @@ export function DesignStudioPage() {
 
               {/* Description: Centered text */}
               <p className="text-sm text-neutral-300 text-center leading-relaxed px-2">
-                Hệ thống Farriott chỉ hỗ trợ chèn các tệp <strong className="text-white">hình ảnh</strong> lên áo để in DTF/Decal sắc nét. Các tệp video, âm thanh hoặc tài liệu không được hỗ trợ.
+                {fileErrorModal.customMessage || (
+                  <>
+                    Hệ thống Farriott chỉ hỗ trợ chèn các tệp <strong className="text-white">hình ảnh tĩnh</strong> lên áo để in DTF/Decal sắc nét. Các tệp ảnh động (như GIF), video hoặc tài liệu không được hỗ trợ.
+                  </>
+                )}
               </p>
 
               {/* Supported Formats: Centered badges */}
               <div className="text-center">
                 <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">
-                  Định dạng ảnh được chấp nhận:
+                  Định dạng ảnh tĩnh được chấp nhận:
                 </p>
                 <div className="flex flex-wrap justify-center gap-2">
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">

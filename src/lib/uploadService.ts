@@ -21,13 +21,23 @@ export async function compressImage(
   quality = 0.85
 ): Promise<{ blob: Blob; base64: string }> {
   if (source instanceof File) {
-    const isImage =
-      source.type.startsWith("image/") ||
-      /\.(png|jpe?g|webp|svg|gif|bmp)$/i.test(source.name);
-    if (!isImage) {
+    const isGif =
+      source.type.toLowerCase().includes("gif") ||
+      /\.gif$/i.test(source.name);
+    if (isGif) {
       return Promise.reject(
         new Error(
-          `File "${source.name}" không phải là hình ảnh hợp lệ (chỉ chấp nhận JPG, PNG, WEBP, SVG).`
+          `File "${source.name}" là ảnh động (GIF). Hệ thống chỉ hỗ trợ hình ảnh tĩnh để in áo.`
+        )
+      );
+    }
+    const isStaticImage =
+      /\.(png|jpe?g|webp|svg|bmp)$/i.test(source.name) ||
+      (source.type.startsWith("image/") && !source.type.includes("gif"));
+    if (!isStaticImage) {
+      return Promise.reject(
+        new Error(
+          `File "${source.name}" không phải là hình ảnh tĩnh hợp lệ (chấp nhận JPG, PNG, WEBP, SVG, BMP).`
         )
       );
     }
